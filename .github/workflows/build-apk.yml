@@ -10,9 +10,6 @@ concurrency:
   group: govind-vault-apk-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  PROJECT_DIR: extracted/Govind_Personal_Vault_GitHub_Repo
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,36 +17,66 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Extract app source
-        shell: bash
-        run: |
-          rm -rf extracted
-          mkdir -p extracted
-          unzip -q Govind_Personal_Vault_GitHub_Public_Repo_v1.0.1.zip -d extracted
-          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          chmod +x "$PROJECT_DIR"/scripts/*.sh
+        uses: actions/checkout@v6
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK packages
+      - name: Find and extract current app source
+        shell: bash
+        run: |
+          mapfile -t archives < <(find . -maxdepth 1 -type f \
+            -name 'Govind_Personal_Vault_GitHub_Public_Repo_v*.zip' \
+            -printf '%f\n' | sort -V)
+
+          if [[ ${#archives[@]} -ne 1 ]]; then
+            echo "Keep exactly one public source ZIP in the repository." >&2
+            printf 'Found: %s\n' "${archives[@]:-none}" >&2
+            exit 1
+          fi
+
+          rm -rf extracted
+          mkdir -p extracted
+          unzip -q "${archives[0]}" -d extracted
+
+          manifest="$(find extracted -type f \
+            -path '*/app/src/main/AndroidManifest.xml' -print -quit)"
+          [[ -n "$manifest" ]] || { echo "AndroidManifest.xml not found." >&2; exit 1; }
+          project_dir="${manifest%/app/src/main/AndroidManifest.xml}"
+          config="$project_dir/app/version.properties"
+          [[ -f "$config" ]] || { echo "app/version.properties not found." >&2; exit 1; }
+
+          # shellcheck disable=SC1090
+          source "$config"
+          : "${VERSION_CODE:?Missing VERSION_CODE}"
+          : "${VERSION_NAME:?Missing VERSION_NAME}"
+          : "${COMPILE_SDK:?Missing COMPILE_SDK}"
+          : "${BUILD_TOOLS_VERSION:?Missing BUILD_TOOLS_VERSION}"
+          : "${APK_BASENAME:?Missing APK_BASENAME}"
+
+          echo "SOURCE_ARCHIVE=${archives[0]}" >> "$GITHUB_ENV"
+          echo "PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "COMPILE_SDK=$COMPILE_SDK" >> "$GITHUB_ENV"
+          echo "BUILD_TOOLS_VERSION=$BUILD_TOOLS_VERSION" >> "$GITHUB_ENV"
+          echo "APK_BASENAME=$APK_BASENAME" >> "$GITHUB_ENV"
+          chmod +x "$project_dir"/scripts/*.sh
+
+      - name: Install Android SDK and audit tools
         shell: bash
         run: |
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
+          if [[ ! -x "$SDKMANAGER" ]]; then
             SDKMANAGER="$(command -v sdkmanager)"
           fi
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Install security-check tools
-        shell: bash
-        run: |
+          "$SDKMANAGER" \
+            "platforms;android-$COMPILE_SDK" \
+            "build-tools;$BUILD_TOOLS_VERSION"
           sudo apt-get update
           sudo apt-get install -y ripgrep
 
@@ -68,7 +95,8 @@ jobs:
             exit 1
           }
           umask 077
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/govind-personal-vault.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode \
+            > "$RUNNER_TEMP/govind-personal-vault.jks"
           test -s "$RUNNER_TEMP/govind-personal-vault.jks"
 
       - name: Run tests and security checks
@@ -94,14 +122,26 @@ jobs:
         run: ./scripts/verify_apk.sh
 
       - name: Upload APK for download
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: Govind-Personal-Vault-v1.0.1
+          name: Govind-Personal-Vault-v${{ env.VERSION_NAME }}
           path: |
-            extracted/Govind_Personal_Vault_GitHub_Repo/dist/Govind_Personal_Vault_v1.0.1.apk
-            extracted/Govind_Personal_Vault_GitHub_Repo/dist/Govind_Personal_Vault_v1.0.1.apk.idsig
+            ${{ env.PROJECT_DIR }}/dist/*.apk
+            ${{ env.PROJECT_DIR }}/dist/*.apk.idsig
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
+
+      - name: Write build summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Govind Personal Vault APK ready"
+            echo "- Version: $VERSION_NAME"
+            echo "- Version code: $VERSION_CODE"
+            echo "- Source: $SOURCE_ARCHIVE"
+            echo "- Download it from the Artifacts section of this run."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary signing key
         if: always()
