@@ -85,6 +85,7 @@ public final class VaultActivity extends BaseActivity {
     private TextView fileDetailMeta;
     private ItemAdapter adapter;
     private FileAdapter fileAdapter;
+    private FolderAdapter folderAdapter;
     private VaultDb.Task listTask;
     private VaultDb.Task countTask;
     private MediaRepository.Task actionTask;
@@ -96,6 +97,7 @@ public final class VaultActivity extends BaseActivity {
     private boolean suppressSearch;
     private long loadGeneration;
     private MediaItemRecord selectedFile;
+    private String fileFolder;
     private VaultItem selectedItem;
     private LinearLayout itemDetail;
     private TextView itemDetailTitle;
@@ -117,6 +119,11 @@ public final class VaultActivity extends BaseActivity {
                 if (selectedFile != null) {
                     selectedFile = null;
                     renderFileDetail();
+                    return;
+                }
+                if (TAB_FILES.equals(selectedTab) && fileFolder != null) {
+                    fileFolder = null;
+                    loadFiles();
                     return;
                 }
                 if (selectedItem != null) {
@@ -223,6 +230,7 @@ public final class VaultActivity extends BaseActivity {
         list.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), Ui.dp(this, 8));
         adapter = new ItemAdapter();
         fileAdapter = new FileAdapter();
+        folderAdapter = new FolderAdapter();
         list.setAdapter(adapter);
         listColumn.addView(list, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
         fileDetail = buildFileDetail();
@@ -630,6 +638,7 @@ public final class VaultActivity extends BaseActivity {
         selectedTab = tab;
         selectedFilter = FILTER_ALL;
         selectedFile = null;
+        fileFolder = null;
         if (selectedItem != null) {
             selectedItem.clearSensitive();
             selectedItem = null;
@@ -664,9 +673,9 @@ public final class VaultActivity extends BaseActivity {
             emptyAction.setText("+ New card");
         } else if (files) {
             pageTitle.setText("Files");
-            pageSubtitle.setText("Upload, encrypt, download — or export a .enc backup.");
+            pageSubtitle.setText("Open a type folder. Files stay only in that folder.");
             addButton.setText("+ Encrypt file");
-            emptySubtitle.setText("Drop a document into the vault. It is encrypted before it is stored.");
+            emptySubtitle.setText("Encrypt a file — it lands in the matching type folder.");
             emptyAction.setText("+ Encrypt file");
         } else {
             pageTitle.setText("Aegis");
@@ -944,8 +953,10 @@ public final class VaultActivity extends BaseActivity {
 
     private void loadFiles() {
         if (listTask != null) listTask.cancel();
-        String query = search == null ? "" : search.getText().toString();
-        listTask = VaultDb.get(this).listMediaAsync(query, "files", 400, (items, error) -> {
+        String query = search == null ? "" : search.getText().toString().trim();
+        final boolean folderMode = (fileFolder == null || fileFolder.isEmpty()) && query.isEmpty();
+        String kind = (fileFolder == null || fileFolder.isEmpty()) ? "files" : fileFolder;
+        listTask = VaultDb.get(this).listMediaAsync(query, kind, 400, (items, error) -> {
             if (!active) {
                 clearMedia(items);
                 return;
@@ -958,21 +969,59 @@ public final class VaultActivity extends BaseActivity {
             ArrayList<MediaItemRecord> shown = new ArrayList<>();
             if (items != null) {
                 for (MediaItemRecord item : items) {
-                    if (matchesFilter(item.favorite, item.category)
+                    boolean typeOk = fileFolder == null || fileFolder.isEmpty()
+                            || fileFolder.equals(item.typeKey());
+                    if (typeOk && matchesFilter(item.favorite, item.category)
                             && (query.isEmpty()
                             || item.displayTitle().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
-                            || item.originalName.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))) {
+                            || item.originalName.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
+                            || item.kindLabel().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))) {
                         shown.add(item);
                     } else item.clearSensitive();
                 }
             }
-            fileAdapter.replace(shown);
-            boolean empty = shown.isEmpty();
-            emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
-            ((View) list.getParent()).setVisibility(empty ? View.GONE : View.VISIBLE);
-            list.setVisibility(empty ? View.GONE : View.VISIBLE);
+            if (folderMode) {
+                list.setAdapter(folderAdapter);
+                folderAdapter.replaceFrom(shown);
+                clearMedia(shown);
+                boolean empty = folderAdapter.getCount() == 0;
+                emptyTitle.setText("No files yet");
+                emptySubtitle.setText("Encrypt a file — it lands in the matching type folder.");
+                emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+                ((View) list.getParent()).setVisibility(empty ? View.GONE : View.VISIBLE);
+                list.setVisibility(empty ? View.GONE : View.VISIBLE);
+                pageTitle.setText("Files");
+                pageSubtitle.setText("Open a type folder. Files stay only in that folder.");
+                if (chipsRow != null) ((View) chipsRow.getParent()).setVisibility(View.GONE);
+            } else {
+                list.setAdapter(fileAdapter);
+                fileAdapter.replace(shown);
+                boolean empty = shown.isEmpty();
+                emptyTitle.setText("Nothing in this folder");
+                emptySubtitle.setText("Encrypt a matching file or pick another type folder.");
+                emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+                ((View) list.getParent()).setVisibility(empty ? View.GONE : View.VISIBLE);
+                list.setVisibility(empty ? View.GONE : View.VISIBLE);
+                pageTitle.setText(folderLabel(fileFolder));
+                pageSubtitle.setText(shown.size() + (shown.size() == 1 ? " file" : " files") + " · Back returns to type folders.");
+                if (chipsRow != null) ((View) chipsRow.getParent()).setVisibility(View.VISIBLE);
+            }
             renderFileDetail();
         });
+    }
+
+    private static String folderLabel(String key) {
+        if (key == null) return "Files";
+        switch (key) {
+            case "image": return "Images";
+            case "video": return "Videos";
+            case "audio": return "Audio";
+            case "pdf": return "PDF";
+            case "text": return "Text";
+            case "document": return "Documents";
+            case "other": return "Other";
+            default: return "Files";
+        }
     }
 
     private void renderFileDetail() {
@@ -1162,6 +1211,8 @@ public final class VaultActivity extends BaseActivity {
         loadGeneration++;
         if (adapter != null) adapter.clear();
         if (fileAdapter != null) fileAdapter.clear();
+        if (folderAdapter != null) folderAdapter.clear();
+        fileFolder = null;
         if (emptyState != null) emptyState.setVisibility(View.GONE);
         selectedFile = null;
         if (selectedItem != null) {
@@ -1218,16 +1269,42 @@ public final class VaultActivity extends BaseActivity {
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View reusable, ViewGroup parent) {
             VaultItem item = getItem(position);
-            LinearLayout row = Ui.horizontal(VaultActivity.this);
-            row.setPadding(Ui.dp(VaultActivity.this, 12), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 12), Ui.dp(VaultActivity.this, 14));
+            LinearLayout row;
+            TextView title, sub, badge, glyphView;
+            if (reusable instanceof LinearLayout && reusable.getTag() instanceof String[]
+                    && "item".equals(((String[]) reusable.getTag())[0])) {
+                row = (LinearLayout) reusable;
+                glyphView = (TextView) row.getChildAt(0);
+                LinearLayout labels = (LinearLayout) row.getChildAt(1);
+                title = (TextView) labels.getChildAt(0);
+                sub = (TextView) labels.getChildAt(1);
+                badge = (TextView) row.getChildAt(2);
+            } else {
+                row = Ui.horizontal(VaultActivity.this);
+                row.setPadding(Ui.dp(VaultActivity.this, 12), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 12), Ui.dp(VaultActivity.this, 14));
+                row.setTag(new String[]{"item"});
+                glyphView = Ui.iconBubble(VaultActivity.this, "⌁");
+                row.addView(glyphView);
+                LinearLayout labels = Ui.vertical(VaultActivity.this);
+                title = Ui.text(VaultActivity.this, "", 16, palette.text);
+                title.setTypeface(Ui.serif());
+                title.setMaxLines(1);
+                title.setEllipsize(TextUtils.TruncateAt.END);
+                labels.addView(title);
+                sub = Ui.text(VaultActivity.this, "", 13, palette.muted);
+                sub.setMaxLines(1);
+                sub.setEllipsize(TextUtils.TruncateAt.END);
+                labels.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
+                lp.leftMargin = Ui.dp(VaultActivity.this, 10);
+                row.addView(labels, lp);
+                badge = Ui.pill(VaultActivity.this, "", false);
+                badge.setTextSize(11);
+                row.addView(badge);
+            }
             String glyph = VaultItem.CARD.equals(item.kind) ? "▭" : VaultItem.NOTE.equals(item.kind) ? "✎" : "⌁";
-            row.addView(Ui.iconBubble(VaultActivity.this, glyph));
-            LinearLayout labels = Ui.vertical(VaultActivity.this);
-            TextView title = Ui.text(VaultActivity.this, item.title, 16, palette.text);
-            title.setTypeface(Ui.serif());
-            title.setMaxLines(1);
-            title.setEllipsize(TextUtils.TruncateAt.END);
-            labels.addView(title);
+            glyphView.setText(glyph);
+            title.setText(item.title);
             String who = VaultItem.CARD.equals(item.kind)
                     ? item.maskedSecret()
                     : VaultItem.PASSWORD.equals(item.kind)
@@ -1235,23 +1312,102 @@ public final class VaultActivity extends BaseActivity {
                     : (item.notes.isEmpty() ? "Note" : item.notes.split("\n")[0]);
             String secondary = who + " · " + item.category + " · " + relativeTime(item.updatedAt);
             if (secondary.length() > 90) secondary = secondary.substring(0, 90);
-            TextView sub = Ui.text(VaultActivity.this, secondary, 13, palette.muted);
-            sub.setMaxLines(1);
-            sub.setEllipsize(TextUtils.TruncateAt.END);
-            labels.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
-            lp.leftMargin = Ui.dp(VaultActivity.this, 10);
-            row.addView(labels, lp);
-            TextView badge = Ui.pill(VaultActivity.this, item.favorite ? "★ " + item.category : item.category, false);
-            badge.setTextSize(11);
-            row.addView(badge);
+            sub.setText(secondary);
+            badge.setText(item.favorite ? "★ " + item.category : item.category);
+            final VaultItem copy = item.copy();
             row.setOnClickListener(v -> {
                 if (selectedItem != null) selectedItem.clearSensitive();
-                selectedItem = item.copy();
+                selectedItem = copy;
                 renderItemDetail();
             });
             row.setOnLongClickListener(v -> { askDelete(item); return true; });
             return row;
+        }
+    }
+
+    private final class FolderAdapter extends BaseAdapter {
+        private final ArrayList<FolderRow> rows = new ArrayList<>();
+        void clear() { rows.clear(); notifyDataSetChanged(); }
+        void replaceFrom(List<MediaItemRecord> items) {
+            int images = 0, videos = 0, audio = 0, pdf = 0, textCount = 0, docs = 0, other = 0;
+            if (items != null) {
+                for (MediaItemRecord item : items) {
+                    switch (item.typeKey()) {
+                        case "image": images++; break;
+                        case "video": videos++; break;
+                        case "audio": audio++; break;
+                        case "pdf": pdf++; break;
+                        case "text": textCount++; break;
+                        case "document": docs++; break;
+                        default: other++; break;
+                    }
+                }
+            }
+            rows.clear();
+            addFolder(rows, "image", "Images", "IMG", images);
+            addFolder(rows, "video", "Videos", "VID", videos);
+            addFolder(rows, "audio", "Audio", "AUD", audio);
+            addFolder(rows, "pdf", "PDF", "PDF", pdf);
+            addFolder(rows, "text", "Text", "TXT", textCount);
+            addFolder(rows, "document", "Documents", "DOC", docs);
+            addFolder(rows, "other", "Other", "FILE", other);
+            notifyDataSetChanged();
+        }
+        private void addFolder(ArrayList<FolderRow> out, String key, String label, String glyph, int count) {
+            if (count <= 0) return;
+            out.add(new FolderRow(key, label, glyph, count));
+        }
+        @Override public int getCount() { return rows.size(); }
+        @Override public FolderRow getItem(int position) { return rows.get(position); }
+        @Override public long getItemId(int position) { return position; }
+        @Override public View getView(int position, View reusable, ViewGroup parent) {
+            FolderRow rowData = getItem(position);
+            LinearLayout row;
+            TextView glyphView, title, countView;
+            if (reusable instanceof LinearLayout && reusable.getTag() instanceof String[]
+                    && "folder".equals(((String[]) reusable.getTag())[0])) {
+                row = (LinearLayout) reusable;
+                LinearLayout left = (LinearLayout) row.getChildAt(0);
+                glyphView = (TextView) left.getChildAt(0);
+                title = (TextView) left.getChildAt(1);
+                countView = (TextView) row.getChildAt(1);
+            } else {
+                row = Ui.horizontal(VaultActivity.this);
+                row.setPadding(Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 16));
+                row.setTag(new String[]{"folder"});
+                LinearLayout left = Ui.horizontal(VaultActivity.this);
+                glyphView = Ui.text(VaultActivity.this, "", 13, palette.text);
+                glyphView.setTypeface(Typeface.DEFAULT_BOLD);
+                glyphView.setGravity(Gravity.CENTER);
+                glyphView.setBackground(Ui.roundRect(VaultActivity.this, palette.raised, 12, 1, Ui.withAlpha(palette.line, 140)));
+                left.addView(glyphView, new LinearLayout.LayoutParams(Ui.dp(VaultActivity.this, 40), Ui.dp(VaultActivity.this, 40)));
+                title = Ui.text(VaultActivity.this, "", 17, palette.text);
+                title.setTypeface(Ui.serif());
+                title.setPadding(Ui.dp(VaultActivity.this, 12), 0, 0, 0);
+                left.addView(title, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+                row.addView(left, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+                countView = Ui.pill(VaultActivity.this, "0", false);
+                countView.setTextSize(12);
+                row.addView(countView);
+            }
+            glyphView.setText(rowData.glyph);
+            title.setText(rowData.label);
+            countView.setText(String.valueOf(rowData.count));
+            final String key = rowData.key;
+            row.setOnClickListener(v -> {
+                fileFolder = key;
+                selectedFile = null;
+                loadFiles();
+            });
+            return row;
+        }
+    }
+
+    private static final class FolderRow {
+        final String key, label, glyph;
+        final int count;
+        FolderRow(String key, String label, String glyph, int count) {
+            this.key = key; this.label = label; this.glyph = glyph; this.count = count;
         }
     }
 
@@ -1272,23 +1428,40 @@ public final class VaultActivity extends BaseActivity {
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View reusable, ViewGroup parent) {
             MediaItemRecord item = getItem(position);
-            LinearLayout row = Ui.vertical(VaultActivity.this);
-            row.setPadding(Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14));
-            LinearLayout top = Ui.horizontal(VaultActivity.this);
-            TextView title = Ui.text(VaultActivity.this, item.displayTitle(), 16, palette.text);
-            title.setTypeface(Ui.serif());
-            title.setMaxLines(1);
-            title.setEllipsize(TextUtils.TruncateAt.END);
-            top.addView(title, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
-            TextView badge = Ui.pill(VaultActivity.this, item.favorite ? "★ " + item.category : item.category, false);
-            badge.setTextSize(11);
-            top.addView(badge);
-            row.addView(top);
-            TextView sub = Ui.text(VaultActivity.this, item.originalName, 13, palette.muted);
-            sub.setMaxLines(1);
-            row.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
+            LinearLayout row;
+            TextView title, badge, sub;
+            if (reusable instanceof LinearLayout && reusable.getTag() instanceof String[]
+                    && "file".equals(((String[]) reusable.getTag())[0])) {
+                row = (LinearLayout) reusable;
+                LinearLayout top = (LinearLayout) row.getChildAt(0);
+                title = (TextView) top.getChildAt(0);
+                badge = (TextView) top.getChildAt(1);
+                sub = (TextView) row.getChildAt(1);
+            } else {
+                row = Ui.vertical(VaultActivity.this);
+                row.setPadding(Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14));
+                row.setTag(new String[]{"file"});
+                LinearLayout top = Ui.horizontal(VaultActivity.this);
+                title = Ui.text(VaultActivity.this, "", 16, palette.text);
+                title.setTypeface(Ui.serif());
+                title.setMaxLines(1);
+                title.setEllipsize(TextUtils.TruncateAt.END);
+                top.addView(title, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+                badge = Ui.pill(VaultActivity.this, "", false);
+                badge.setTextSize(11);
+                top.addView(badge);
+                row.addView(top);
+                sub = Ui.text(VaultActivity.this, "", 13, palette.muted);
+                sub.setMaxLines(1);
+                sub.setEllipsize(TextUtils.TruncateAt.END);
+                row.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
+            }
+            title.setText(item.displayTitle());
+            badge.setText(item.favorite ? "★ " + item.kindLabel() : item.kindLabel());
+            sub.setText(item.originalName + " · " + item.category);
+            final MediaItemRecord copy = item.copy();
             row.setOnClickListener(v -> {
-                selectedFile = item.copy();
+                selectedFile = copy;
                 renderFileDetail();
             });
             return row;
