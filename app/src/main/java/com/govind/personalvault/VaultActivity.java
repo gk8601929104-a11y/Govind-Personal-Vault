@@ -96,6 +96,10 @@ public final class VaultActivity extends BaseActivity {
     private boolean suppressSearch;
     private long loadGeneration;
     private MediaItemRecord selectedFile;
+    private VaultItem selectedItem;
+    private LinearLayout itemDetail;
+    private TextView itemDetailTitle;
+    private LinearLayout itemDetailBody;
     private TextView drawerCountPasswords;
     private TextView drawerCountNotes;
     private TextView drawerCountCards;
@@ -113,6 +117,12 @@ public final class VaultActivity extends BaseActivity {
                 if (selectedFile != null) {
                     selectedFile = null;
                     renderFileDetail();
+                    return;
+                }
+                if (selectedItem != null) {
+                    selectedItem.clearSensitive();
+                    selectedItem = null;
+                    loadCurrent();
                     return;
                 }
                 if (!TAB_OVERVIEW.equals(selectedTab)) {
@@ -167,6 +177,9 @@ public final class VaultActivity extends BaseActivity {
         lock.setOnClickListener(v -> lockNow());
         top.addView(lock);
         shell.addView(top);
+        View topLine = new View(this);
+        topLine.setBackgroundColor(Ui.withAlpha(palette.line, 180));
+        shell.addView(topLine, new LinearLayout.LayoutParams(Ui.MATCH, 1));
 
         LinearLayout headingRow = Ui.horizontal(this);
         headingRow.setPadding(Ui.dp(this, 18), Ui.dp(this, 6), Ui.dp(this, 18), 0);
@@ -214,6 +227,8 @@ public final class VaultActivity extends BaseActivity {
         listColumn.addView(list, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
         fileDetail = buildFileDetail();
         listColumn.addView(fileDetail);
+        itemDetail = buildItemDetail();
+        body.addView(itemDetail, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
         body.addView(listColumn, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
 
         emptyState = buildEmpty();
@@ -437,6 +452,40 @@ public final class VaultActivity extends BaseActivity {
         return panel;
     }
 
+    private LinearLayout buildItemDetail() {
+        LinearLayout panel = Ui.vertical(this);
+        panel.setBackgroundColor(palette.bg);
+        panel.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 16));
+        LinearLayout titleRow = Ui.horizontal(this);
+        Button back = Ui.iconButton(this, "‹", "Back");
+        back.setOnClickListener(v -> {
+            if (selectedItem != null) selectedItem.clearSensitive();
+            selectedItem = null;
+            loadCurrent();
+        });
+        titleRow.addView(back);
+        itemDetailTitle = Ui.heading(this, "");
+        itemDetailTitle.setMaxLines(1);
+        itemDetailTitle.setEllipsize(TextUtils.TruncateAt.END);
+        titleRow.addView(itemDetailTitle, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        Button more = Ui.iconButton(this, "···", "More");
+        more.setOnClickListener(this::showItemMenu);
+        titleRow.addView(more);
+        panel.addView(titleRow);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        itemDetailBody = Ui.vertical(this);
+        scroll.addView(itemDetailBody);
+        panel.addView(scroll, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
+        Button edit = Ui.secondary(this, "Edit");
+        edit.setOnClickListener(v -> {
+            if (selectedItem == null) return;
+            openEditor(selectedItem.kind, selectedItem.id);
+        });
+        panel.addView(edit, Ui.margins(this, Ui.MATCH, Ui.dp(this, 48), 0, 12, 0, 0));
+        panel.setVisibility(View.GONE);
+        return panel;
+    }
+
     private LinearLayout buildNav() {
         LinearLayout nav = Ui.horizontal(this);
         nav.setPadding(Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8));
@@ -571,6 +620,10 @@ public final class VaultActivity extends BaseActivity {
         selectedTab = tab;
         selectedFilter = FILTER_ALL;
         selectedFile = null;
+        if (selectedItem != null) {
+            selectedItem.clearSensitive();
+            selectedItem = null;
+        }
         suppressSearch = true;
         if (search != null) search.setText("");
         suppressSearch = false;
@@ -677,6 +730,36 @@ public final class VaultActivity extends BaseActivity {
         menu.show();
     }
 
+    private void showItemMenu(View anchor) {
+        if (selectedItem == null) return;
+        android.widget.PopupMenu menu = new android.widget.PopupMenu(this, anchor);
+        menu.getMenu().add(0, 1, 0, "Edit");
+        menu.getMenu().add(0, 2, 0, selectedItem.favorite ? "Unstar" : "Star");
+        menu.getMenu().add(0, 3, 0, "Delete");
+        menu.setOnMenuItemClickListener(item -> {
+            if (selectedItem == null) return true;
+            if (item.getItemId() == 1) {
+                openEditor(selectedItem.kind, selectedItem.id);
+                return true;
+            }
+            if (item.getItemId() == 2) {
+                VaultItem next = selectedItem.copy();
+                next.favorite = !next.favorite;
+                VaultDb.get(this).saveAsync(next, (id, error) -> {
+                    if (error != null) { error(error); return; }
+                    selectedItem.favorite = next.favorite;
+                    message(next.favorite ? "Starred" : "Unstarred");
+                    renderItemDetail();
+                    loadCurrent();
+                });
+                return true;
+            }
+            askDelete(selectedItem);
+            return true;
+        });
+        menu.show();
+    }
+
     private void primaryAction() {
         if (TAB_FILES.equals(selectedTab)) {
             startActivityForResult(new Intent(this, FileEditorActivity.class), FILE_EDITOR_REQUEST);
@@ -691,11 +774,13 @@ public final class VaultActivity extends BaseActivity {
 
     private void loadCurrent() {
         if (!active || !VaultSession.isUnlocked()) return;
+        if (selectedItem == null && itemDetail != null) itemDetail.setVisibility(View.GONE);
         loadOverview();
         if (TAB_OVERVIEW.equals(selectedTab)) {
             list.setVisibility(View.GONE);
             emptyState.setVisibility(View.GONE);
             fileDetail.setVisibility(View.GONE);
+            if (itemDetail != null) itemDetail.setVisibility(View.GONE);
             ((View) list.getParent()).setVisibility(View.GONE);
             return;
         }
@@ -796,9 +881,15 @@ public final class VaultActivity extends BaseActivity {
         row.setOnClickListener(v -> {
             if ("file".equals(item.kind)) {
                 selectTab(TAB_FILES);
-            } else {
-                openEditor(item.kind, item.id);
+                return;
             }
+            selectTab(item.kind);
+            VaultDb.get(this).getAsync(item.id, (vaultItem, error) -> {
+                if (!active || error != null || vaultItem == null) return;
+                if (selectedItem != null) selectedItem.clearSensitive();
+                selectedItem = vaultItem.copy();
+                renderItemDetail();
+            });
         });
         return row;
     }
@@ -826,10 +917,12 @@ public final class VaultActivity extends BaseActivity {
             }
             adapter.replace(shown);
             boolean empty = shown.isEmpty();
-            emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
-            ((View) list.getParent()).setVisibility(empty ? View.GONE : View.VISIBLE);
-            list.setVisibility(empty ? View.GONE : View.VISIBLE);
+            boolean detail = selectedItem != null;
+            emptyState.setVisibility(empty && !detail ? View.VISIBLE : View.GONE);
+            ((View) list.getParent()).setVisibility(empty || detail ? View.GONE : View.VISIBLE);
+            list.setVisibility(empty || detail ? View.GONE : View.VISIBLE);
             fileDetail.setVisibility(View.GONE);
+            renderItemDetail();
         });
     }
 
@@ -882,6 +975,66 @@ public final class VaultActivity extends BaseActivity {
         fileDetailMeta.setText(VaultItem.normalizeCategory(selectedFile.category)
                 + "\n\nFilename\n" + selectedFile.originalName
                 + "\n\nSize\n" + humanSize(selectedFile.size));
+    }
+
+    private void renderItemDetail() {
+        boolean show = selectedItem != null && !TAB_OVERVIEW.equals(selectedTab) && !TAB_FILES.equals(selectedTab);
+        if (itemDetail != null) itemDetail.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (!show) return;
+        headingRowVisible(false);
+        searchBox.setVisibility(View.GONE);
+        ((View) chipsRow.getParent()).setVisibility(View.GONE);
+        addButton.setVisibility(View.GONE);
+        emptyState.setVisibility(View.GONE);
+        ((View) list.getParent()).setVisibility(View.GONE);
+        itemDetailTitle.setText(selectedItem.title);
+        itemDetailBody.removeAllViews();
+        if (VaultItem.PASSWORD.equals(selectedItem.kind)) {
+            addCopyField("Username", selectedItem.username);
+            addCopyField("Password", selectedItem.secret);
+            addMetaField("Website", selectedItem.url);
+            addMetaField("Notes", selectedItem.notes);
+        } else if (VaultItem.CARD.equals(selectedItem.kind)) {
+            addCopyField("Cardholder", selectedItem.username);
+            addCopyField("Number", selectedItem.secret);
+            addMetaField("Expiry", selectedItem.url);
+            String[] cvv = splitStoredCvv(selectedItem.notes);
+            addCopyField("CVV", cvv[0]);
+            addMetaField("Notes", cvv[1]);
+        } else {
+            addMetaField("Note", selectedItem.notes);
+        }
+        addMetaField("Category", selectedItem.category);
+        addMetaField("Tags", selectedItem.tags);
+        addMetaField("Last updated", relativeTime(selectedItem.updatedAt));
+    }
+
+    private void addMetaField(String label, String value) {
+        if (value == null || value.isEmpty()) return;
+        itemDetailBody.addView(Ui.label(this, label), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 16, 0, 4));
+        TextView text = Ui.text(this, value, 15, palette.text);
+        itemDetailBody.addView(text);
+    }
+
+    private void addCopyField(String label, String value) {
+        if (value == null || value.isEmpty()) return;
+        itemDetailBody.addView(Ui.label(this, label), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 16, 0, 4));
+        LinearLayout row = Ui.horizontal(this);
+        TextView text = Ui.text(this, "Password".equals(label) || "CVV".equals(label) ? "••••••••••••" : value, 15, palette.text);
+        row.addView(text, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        Button copy = Ui.pill(this, "Copy", false);
+        copy.setOnClickListener(v -> copySecret(label.toLowerCase(Locale.ROOT), value));
+        row.addView(copy);
+        itemDetailBody.addView(row);
+    }
+
+    private static String[] splitStoredCvv(String notesValue) {
+        if (notesValue != null && notesValue.startsWith("CVV\t")) {
+            int nl = notesValue.indexOf('\n');
+            if (nl < 0) return new String[]{notesValue.substring(4), ""};
+            return new String[]{notesValue.substring(4, nl), notesValue.substring(nl + 1)};
+        }
+        return new String[]{"", notesValue == null ? "" : notesValue};
     }
 
     private void exportSelected(boolean ciphertext) {
@@ -948,6 +1101,21 @@ public final class VaultActivity extends BaseActivity {
         return "Good evening";
     }
 
+    private static String relativeTime(long ts) {
+        long s = Math.max(0L, (System.currentTimeMillis() - ts) / 1000L);
+        if (s < 45) return "just now";
+        if (s < 90) return "1 minute ago";
+        if (s < 3600) return (s / 60) + " minutes ago";
+        if (s < 5400) return "1 hour ago";
+        if (s < 86400) return (s / 3600) + " hours ago";
+        long days = Math.max(1L, s / 86400L);
+        if (days == 1) return "yesterday";
+        if (days < 7) return days + " days ago";
+        if (days < 11) return "last week";
+        if (days < 30) return (days / 7) + " weeks ago";
+        return new java.text.SimpleDateFormat("d MMM yyyy", Locale.US).format(new java.util.Date(ts));
+    }
+
     private static String humanSize(long bytes) {
         if (bytes < 1024L) return bytes + " B";
         double value = bytes / 1024.0;
@@ -972,6 +1140,10 @@ public final class VaultActivity extends BaseActivity {
         if (fileAdapter != null) fileAdapter.clear();
         if (emptyState != null) emptyState.setVisibility(View.GONE);
         selectedFile = null;
+        if (selectedItem != null) {
+            selectedItem.clearSensitive();
+            selectedItem = null;
+        }
     }
 
     @Override protected void onDestroy() {
@@ -1022,29 +1194,38 @@ public final class VaultActivity extends BaseActivity {
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View reusable, ViewGroup parent) {
             VaultItem item = getItem(position);
-            LinearLayout row = Ui.vertical(VaultActivity.this);
-            row.setPadding(Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14));
-            LinearLayout top = Ui.horizontal(VaultActivity.this);
+            LinearLayout row = Ui.horizontal(VaultActivity.this);
+            row.setPadding(Ui.dp(VaultActivity.this, 12), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 12), Ui.dp(VaultActivity.this, 14));
+            String glyph = VaultItem.CARD.equals(item.kind) ? "▭" : VaultItem.NOTE.equals(item.kind) ? "✎" : "⌁";
+            row.addView(Ui.iconBubble(VaultActivity.this, glyph));
+            LinearLayout labels = Ui.vertical(VaultActivity.this);
             TextView title = Ui.text(VaultActivity.this, item.title, 16, palette.text);
             title.setTypeface(Ui.serif());
             title.setMaxLines(1);
             title.setEllipsize(TextUtils.TruncateAt.END);
-            top.addView(title, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
-            TextView badge = Ui.pill(VaultActivity.this, item.favorite ? "★ " + item.category : item.category, false);
-            badge.setTextSize(11);
-            top.addView(badge);
-            row.addView(top);
-            String secondary = VaultItem.CARD.equals(item.kind)
+            labels.addView(title);
+            String who = VaultItem.CARD.equals(item.kind)
                     ? item.maskedSecret()
                     : VaultItem.PASSWORD.equals(item.kind)
-                    ? (item.username.isEmpty() ? item.url : item.username)
-                    : item.notes;
+                    ? (item.username.isEmpty() ? (item.url.isEmpty() ? "Login" : item.url) : item.username)
+                    : (item.notes.isEmpty() ? "Note" : item.notes.split("\n")[0]);
+            String secondary = who + " · " + item.category + " · " + relativeTime(item.updatedAt);
             if (secondary.length() > 90) secondary = secondary.substring(0, 90);
             TextView sub = Ui.text(VaultActivity.this, secondary, 13, palette.muted);
             sub.setMaxLines(1);
             sub.setEllipsize(TextUtils.TruncateAt.END);
-            row.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
-            row.setOnClickListener(v -> openEditor(item.kind, item.id));
+            labels.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
+            lp.leftMargin = Ui.dp(VaultActivity.this, 10);
+            row.addView(labels, lp);
+            TextView badge = Ui.pill(VaultActivity.this, item.favorite ? "★ " + item.category : item.category, false);
+            badge.setTextSize(11);
+            row.addView(badge);
+            row.setOnClickListener(v -> {
+                if (selectedItem != null) selectedItem.clearSensitive();
+                selectedItem = item.copy();
+                renderItemDetail();
+            });
             row.setOnLongClickListener(v -> { askDelete(item); return true; });
             return row;
         }

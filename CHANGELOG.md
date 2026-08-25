@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1 (version code 18)
+
+- Login / note / card tap opens a detail screen (copy, star, edit, delete) matching the vault screenshots.
+- List rows show icon, username · category · relative time, and a category pill.
+- Generator: length chips (12/16/20/24) and Uppercase / Lowercase / Digits / Symbols. Tap the password to regenerate.
+- New login / note / card / encrypt-file forms: category dropdown, Favorite checkbox, tags, AES-256-GCM copy.
+- Cards store a dedicated CVV (with notes). Header hairline under the top bar.
+- Encryption is unchanged. Over-install on 1.4.0.
+
 ## 1.4.0 (version code 17)
 
 - Overview now matches the Aegis-style home: greeting, Generate, health cards, Recent, Favorites, and Start with one secret.
