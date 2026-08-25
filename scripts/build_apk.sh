@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build signed release APK using the version.properties and signing env vars.
-# Output goes to dist/
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
@@ -26,7 +23,6 @@ APK_DEST="dist/${APK_BASENAME}_v${VERSION_NAME}_${VERSION_CODE}.apk"
 cp "$APK_SRC" "$APK_DEST"
 echo "APK written to $APK_DEST"
 
-# Also copy idsig if present
 IDSIG_SRC="${APK_SRC}.idsig"
 if [[ -f "$IDSIG_SRC" ]]; then
   cp "$IDSIG_SRC" "${APK_DEST}.idsig"
