@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.4 (version code 21)
+
+- Files tab: type folders (Images, Videos, Audio, PDF, Text, Documents, Other). Each file stays only in its folder.
+- Video seek overlay uses plain `+0:05 / 0:26` (no broken arrow glyph). Seek no longer freezes the progress UI.
+- List rows recycle views to cut lag while scrolling. Navigation back from a folder returns to type folders first.
+- Encryption, package ID, and signing are unchanged. Over-install on 1.4.3.
+
+
 ## 1.4.3 (version code 20)
 
 - Backup import now validates the wrapped key and writes atomically, so a bad file cannot wipe a working vault.
