@@ -1,0 +1,30 @@
+GOVIND PERSONAL VAULT v1.2.3 DEVICE TEST PLAN
+
+A. UPDATE SAFETY
+1. Install v1.2.3 directly over v1.2.2; do not uninstall.
+2. Confirm existing passwords, notes, media and documents remain available.
+
+B. SCREENSHOTS (TEMPORARY QA MODE)
+1. Open any vault screen and take a screenshot. It should succeed.
+2. Open encrypted video and take a screenshot. It should succeed.
+3. This is QA-only. Screenshot blocking must be turned back on before the final release.
+
+C. AUDIO PLAYER
+1. Open an encrypted audio file. Playback should start without an extra Play tap.
+2. Confirm the buffering spinner appears only while loading.
+3. Tap Play/Pause. Use −10s / +10s. Change speed including 0.75×.
+4. Horizontal swipe on the artwork seeks. Vertical swipe changes volume.
+5. Screen-off: vault locks and playback stops.
+
+D. VIDEO PLAYER
+1. Open an encrypted video. Playback should start without an extra Play tap.
+2. Overlay controls sit on the video. Landscape hides chrome while playing.
+3. Double-tap left = −10s, double-tap right = +10s, double-tap center = play/pause.
+4. Horizontal swipe seeks. Left-half vertical swipe changes brightness. Right-half vertical swipe changes volume.
+5. Fit / Zoom / Fill still work. Audio-track picker still works if multiple tracks exist.
+6. Screen-off: vault locks; no plaintext media file is written.
+
+E. SECURITY
+1. No Internet permission.
+2. No FileProvider / ACTION_VIEW handoff.
+3. Do not uninstall the previous app to update.

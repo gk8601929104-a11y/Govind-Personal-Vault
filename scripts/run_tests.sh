@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$PROJECT_DIR"
+# shellcheck source=version_config.sh
+source "$SCRIPT_DIR/version_config.sh"
 
-echo "Running unit tests..."
-gradle testDebugUnitTest --no-daemon --stacktrace || {
-  echo "Unit tests failed" >&2
+command -v gradle >/dev/null || {
+  echo "Gradle is not installed on PATH." >&2
   exit 1
 }
 
-echo "Running release lint..."
-gradle lintRelease --no-daemon --stacktrace || {
-  echo "Lint failed" >&2
+ACTUAL_GRADLE_VERSION="$(gradle --version | awk '/^Gradle / { print $2; exit }')"
+if [[ "$ACTUAL_GRADLE_VERSION" != "$GRADLE_VERSION" ]]; then
+  echo "Expected Gradle $GRADLE_VERSION but found $ACTUAL_GRADLE_VERSION." >&2
   exit 1
-}
+fi
 
-echo "Tests and lint passed."
+GRADLE=(gradle --no-daemon --stacktrace --console=plain -p "$PROJECT_DIR")
+
+# AGP 9 creates the default app unit-test component for debug. Run the real
+# JUnit suite, compile production release Java, and then run release lint.
+# BidiSpoofing is handled by our deterministic Unicode-control scanner because
+# the AGP 9.3 detector currently crashes under its supported JDK 17 runtime.
+"${GRADLE[@]}" \
+  :app:compileReleaseJavaWithJavac \
+  :app:testDebugUnitTest \
+  :app:lintRelease

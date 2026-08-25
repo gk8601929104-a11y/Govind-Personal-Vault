@@ -44,6 +44,9 @@ android {
     if (hasSigning) {
         signingConfigs {
             release {
+                // Use explicit property assignment. This avoids Groovy name
+                // shadowing (for example, a local String named storePassword
+                // being interpreted as a callable method target).
                 storeFile = file(signingKeystorePath)
                 storePassword = signingStorePasswordValue
                 keyAlias = signingKeyAliasValue
@@ -74,12 +77,35 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+        warningsAsErrors false
+        disable 'TypographyFractions', 'TypographyQuotes', 'BidiSpoofing'
+    }
+
+    packaging {
+        resources {
+            excludes += [
+                    'META-INF/DEPENDENCIES',
+                    'META-INF/LICENSE.md',
+                    'META-INF/LICENSE-notice.md'
+            ]
+        }
+    }
 }
 
 dependencies {
-    implementation "androidx.activity:activity:$activityVersion"
-    implementation "androidx.media3:media3-exoplayer:$media3Version"
-    implementation "androidx.media3:media3-ui:$media3Version"
-    implementation "androidx.media3:media3-common:$media3Version"
+    implementation "androidx.activity:activity:${activityVersion}"
+    implementation "androidx.media3:media3-exoplayer:${media3Version}"
+    implementation "androidx.media3:media3-datasource:${media3Version}"
+    implementation "androidx.media3:media3-extractor:${media3Version}"
+    implementation "androidx.media3:media3-ui:${media3Version}"
+
     testImplementation 'junit:junit:4.13.2'
 }

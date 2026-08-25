@@ -1,18 +1,32 @@
-*.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Android / Gradle / local build outputs
+.gradle/
+**/build/
+build/
+dist/
 *.apk
-*.ap_
 *.aab
+*.idsig
+local.properties
+
+# Signing material — never commit
+signing/
 *.jks
 *.keystore
-dist/
-extracted/
-*.zip
-!Govind_Personal_Vault_GitHub_Public_Repo_v*.zip
+*.p12
+*.pfx
+*.pem
+*.key
+
+# Private credentials / exports
+PRIVATE_*
+KEEP_PRIVATE*
+*SIGNING*DETAILS*
+*KEYSTORE*BASE64*
+.env
+.env.*
+*.vault-export
+
+# IDE / OS
+.idea/
+.DS_Store
+Thumbs.db

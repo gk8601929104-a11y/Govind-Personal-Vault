@@ -1,0 +1,43 @@
+GOVIND PERSONAL VAULT 1.2.0 - DEVICE TEST PLAN
+
+Install rule
+- Install the signed v1.2.0 APK as an UPDATE over v1.1.0.
+- Do not uninstall the existing app.
+- Confirm old passwords, notes, and media still appear.
+
+A. Dashboard / landscape
+1. Open Passwords and rotate portrait -> landscape.
+2. Swipe vertically from the center of the dashboard.
+3. Confirm stats, four categories, search, all rows, empty state, and add button are reachable.
+4. Repeat for Notes and with 20+ entries.
+5. On a narrow portrait device, confirm stats/categories use a readable two-row layout.
+
+B. Video player
+1. Play a video in portrait, then rotate to landscape.
+2. Confirm status/navigation bars and app title/metadata chrome hide.
+3. Confirm the video expands after controls auto-hide (about 3.5 seconds while playing).
+4. Tap video: controls appear. Wait: controls hide again.
+5. Cycle Resize: Fit -> Zoom -> Fill -> Fit.
+6. Pause: controls remain visible. Resume: they auto-hide.
+7. Seek, change speed, and change audio track if available.
+8. Rotate back to portrait and confirm normal title/actions return.
+9. Turn screen off during playback and confirm vault locks/player stops.
+
+C. Documents Vault
+1. Open Documents from the dashboard.
+2. Import PDF, TXT, DOC/DOCX, XLS/XLSX, PPT/PPTX, ZIP, and an unknown non-media file.
+3. Confirm photo/video/audio selection is rejected and points to Media Vault.
+4. Confirm document names/types/sizes appear and search works.
+5. Open a document detail screen and export it.
+6. Confirm the exported copy appears under Downloads/Govind Personal Vault and opens normally.
+7. Confirm the encrypted vault copy remains after export.
+8. Delete one encrypted document and confirm it disappears after relaunch.
+9. Lock during import/export and confirm no incomplete visible output remains.
+10. Test low-storage and corrupted/missing encrypted-file error messages when practical.
+
+D. Regression
+1. Import/play photos, videos, and audio in Media Vault.
+2. Confirm Documents do not appear in Media filters/count.
+3. Confirm old media exports still go to Pictures/Movies/Music.
+4. Confirm biometric/PIN/recovery and auto-lock still work.
+5. Confirm app has no Internet or broad storage permission in system settings.

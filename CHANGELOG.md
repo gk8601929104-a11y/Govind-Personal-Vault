@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.2 (version code 15)
+
+- Overview is a dashboard: tap Passwords / Notes / Cards / Files tiles. Bottom nav stays pinned.
+- Tab titles stay on one line (Passwords no longer wraps). Filter chips scroll fully.
+- PDF and text: tap immediately hides or shows back/export/delete. Status bar hides in file viewers.
+- Video finger-seek previews the time, then jumps once when you lift — no mid-drag scramble.
+- Encryption is unchanged (AES-256-GCM, offline).
+
 ## 1.3.1 (version code 14)
 
 - Build fix: removed obsolete `addHeaderView` check from security audit (Aegis shell no longer uses ListView header).
@@ -38,3 +46,22 @@
 - Tall/portrait videos stay on Fit by default so faces are not cropped in landscape Zoom.
 - Long photo and media names ellipsize in the middle instead of wrapping through the file extension.
 - Duplicate pinch-zoom hint removed from the image viewer. Screenshot protection remains off for QA.
+
+## 1.2.3 (version code 8)
+
+- Temporarily disabled FLAG_SECURE screenshot blocking so device screenshots can be captured for QA. Set `BaseActivity.BLOCK_SCREENSHOTS` back to true before the final release.
+- Encrypted audio/video player now autoplays, uses a faster start buffer, and shows a buffering spinner.
+- Player controls sit as an overlay on the media. Tap play/pause, double-tap left/right to skip 10s, horizontal swipe to seek, left-half vertical swipe for brightness, right-half vertical swipe for volume.
+- Speed options include 0.75×. Encryption, package ID, signing, and permissions are unchanged.
+
+## 1.2.2 (version code 7)
+
+- Encrypted photos can be pinched to zoom, dragged to pan, double-tapped to zoom, and slid left/right to the next photo.
+- Encrypted documents now open inside the vault: PDF pages, text files, and Office/OpenDocument text previews.
+- PDF viewing uses an in-memory memfd + Android PdfRenderer. No plaintext document file is written to disk, and files are still not handed to external apps.
+- Document pages can be pinched to zoom and slid to the next page. Text previews support pinch-to-resize.
+- Export and delete remain available. Package ID, signing, encryption format, and permissions are unchanged.
+
+## 1.2.1 (version code 5)
+
+- Removed the fullscreen landscape bottom gap by suppressing retained system-gesture padding while immersive video is active.

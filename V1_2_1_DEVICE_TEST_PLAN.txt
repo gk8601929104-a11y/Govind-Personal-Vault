@@ -1,0 +1,33 @@
+GOVIND PERSONAL VAULT v1.2.1 DEVICE TEST PLAN
+
+A. UPDATE SAFETY
+1. Install v1.2.1 directly over v1.2.0; do not uninstall.
+2. Confirm existing passwords, notes, media and documents remain available.
+
+B. FULLSCREEN VIDEO
+1. Open a 16:9 video and rotate to landscape.
+2. Confirm the video fills the immersive canvas without a retained black strip at the bottom.
+3. Tap once: controls appear. Wait while playing: controls auto-hide.
+4. Cycle Resize through Zoom, Fill and Fit. Fit may intentionally show letterboxing.
+5. Confirm Zoom is the automatic landscape default before manually selecting another mode.
+
+C. GESTURE CONTROLS
+1. On the LEFT half, swipe upward: brightness increases. Swipe downward: brightness decreases.
+2. On the RIGHT half, swipe upward: media volume increases. Swipe downward: media volume decreases.
+3. Confirm a percentage overlay appears and then disappears automatically.
+4. Confirm a simple tap still toggles playback controls and does not change brightness/volume.
+5. Confirm horizontal movement does not accidentally trigger vertical adjustment.
+6. Confirm brightness change applies only to the Vault player window; global device brightness is not rewritten.
+
+D. SECURITY / LIFECYCLE
+1. Lock the screen during playback: the player closes and the vault locks.
+2. Return to the app: authentication is required.
+3. Confirm screenshots/screen recording remain blocked by FLAG_SECURE.
+4. Confirm playback still decrypts on the fly and no plaintext media file appears in app cache/storage.
+5. Test portrait-to-landscape and landscape-to-portrait several times during playback.
+
+E. EDGE CASES
+1. Test volume at 0% and 100%.
+2. Test brightness near minimum and maximum.
+3. Test a video with unusual aspect ratio and verify Resize choices.
+4. Test pause, seek, audio-track switch, export and delete after gesture use.

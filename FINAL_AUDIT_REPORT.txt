@@ -1,0 +1,93 @@
+GOVIND PERSONAL VAULT v1.2.1 (versionCode 5)
+FULLSCREEN CANVAS + PLAYER GESTURES PRE-BUILD AUDIT
+================================================================
+
+Scope
+-----
+This package updates the successfully built v1.1.0 source without changing the package ID,
+signing identity, existing SQLite schema, or encrypted GVM2 file format.
+
+Requested device-test fixes
+---------------------------
+1. Landscape dashboard content was cramped and unreachable.
+   - The programmatic dashboard now uses a ListView header/footer composition.
+   - Stats, category tabs, search, items, empty state, and the add button participate in one
+     vertically scrollable surface.
+   - A ListView is not nested inside a ScrollView.
+
+2. Landscape video playback left too little space for the video.
+   - Added programmatic Media3 PlayerView integration with its built-in controller disabled.
+   - The underlying SurfaceView remains secure.
+   - Landscape video hides system bars, the app title/metadata chrome, and export/delete actions.
+   - Added Fit, Zoom, and Fill resize modes.
+   - Playback controls auto-hide after 3.5 seconds while video is actively playing and return on tap.
+
+3. Documents could not be locked.
+   - Added DocumentsVaultActivity and SecureDocumentActivity.
+   - Added multi-select Storage Access Framework import for non-media documents.
+   - PDFs, office documents, text files, archives, and unknown non-media file types can reuse the
+     existing authenticated encrypted-file engine.
+   - Photos/videos/audio are rejected by the Documents importer and remain in Media Vault.
+   - Document metadata remains encrypted in the existing media_items table; no schema migration is
+     required.
+   - Explicit export decrypts directly into Downloads/Govind Personal Vault through MediaStore.
+   - No plaintext temp preview, ACTION_VIEW, FileProvider, broad storage permission, or external
+     decrypted-file handoff was added.
+
+Identity and compatibility
+--------------------------
+- Package/application ID: com.govind.personalvault (unchanged)
+- VERSION_NAME: 1.2.1
+- VERSION_CODE: 5
+- Database version/schema: unchanged (v2)
+- GVM2 encrypted-file format: unchanged
+- Java: 17 source compatibility
+- Gradle: pinned 9.5.0
+- Android Gradle Plugin: 9.3.0
+- Compile SDK / target SDK / min SDK: 36 / 35 / 31
+- Media3: 1.10.1 including media3-ui
+
+Static and source-level validation executed
+-------------------------------------------
+PASS - repository signing-material/password scan
+PASS - source security/UI/document contract
+PASS - deterministic Unicode bidirectional-control scan
+PASS - every shell script parses with bash -n
+PASS - every authored Android XML file parses
+PASS - GitHub Actions YAML parses
+PASS - Java source lexical/brace and parser-stage structural scan
+PASS - no Java parse errors detected before unresolved Android dependencies
+PASS - manifest declares both non-exported document activities
+PASS - no INTERNET or broad storage/media permission
+PASS - no ACTION_VIEW, FileProvider, or external plaintext handoff
+PASS - document export uses MediaStore.Downloads
+PASS - PlayerView, secure SurfaceView, immersive system-bar handling, auto-hide timer,
+       and Fit/Zoom/Fill resize modes are guarded by the security audit
+PASS - version/package/toolchain metadata consistency
+
+Honest remaining gates
+----------------------
+The current container does not contain the Android SDK, Gradle distribution, or Maven dependency
+cache, so it cannot authoritatively run AGP/Media3 compilation. The next source-of-truth gate is the
+existing pinned GitHub Actions workflow. A green cloud build must then be followed by device tests:
+- portrait/landscape dashboard scrolling,
+- video rotation and tap-to-show controls,
+- Fit/Zoom/Fill rendering,
+- audio playback,
+- PDF/DOC/TXT/ZIP import,
+- lock during import/export,
+- export to Downloads,
+- delete and relaunch,
+- low-storage/corruption behavior,
+- update installation without uninstalling the currently installed app.
+
+
+V1.2.1 PLAYER DELTA REVIEW
+- Package identity unchanged: com.govind.personalvault.
+- Version updated to 1.2.1 (5).
+- Core crypto/session/media data source classes unchanged.
+- Immersive player removes retained system-gesture bottom padding.
+- Landscape automatic resize uses Media3 Zoom; Fit/Fill remain user-selectable.
+- Brightness adjustment is per-window only; WRITE_SETTINGS is not requested.
+- Volume adjustment targets STREAM_MUSIC and adds no permission.
+- FLAG_SECURE and encrypted on-the-fly playback remain active.

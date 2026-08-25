@@ -1,1 +1,39 @@
-See original for full content - placeholder for length
+GOVIND PERSONAL VAULT 1.2.1 - PRE-BUILD VALIDATION REPORT
+
+Implemented request
+- Scrollable dashboard in landscape using a ListView header/footer composition.
+- Responsive 4-category dashboard (2x2 on narrow screens, one row on large screens).
+- Immersive landscape video with secure PlayerView/SurfaceView, hidden system/app chrome,
+  automatic edge-to-edge Zoom, Fit/Zoom/Fill resize modes, and 3.5-second control auto-hide.
+- Left-side brightness and right-side media-volume vertical swipe gestures with an auto-hiding
+  percentage overlay; brightness is per-window and adds no WRITE_SETTINGS permission.
+- Encrypted Documents Vault for non-media files with multi-select import, search, encrypted
+  metadata, direct Downloads export, and encrypted deletion.
+
+Compatibility retained
+- applicationId/package: com.govind.personalvault
+- database version: 2 (unchanged)
+- encrypted GVM2 format: unchanged
+- versionName/versionCode: 1.2.1 / 5
+- pinned Gradle: 9.5.0
+
+Validation executed before packaging
+- Repository signing-material and hard-coded signing-password scan: PASS
+- Static security/UI/document contract: PASS
+- Unicode bidi-control source scan: PASS
+- Shell parsing (`bash -n`): PASS
+- Android XML parse: PASS
+- GitHub workflow YAML parse: PASS
+- Java package and delimiter structural scan: PASS
+- Java compiler parser-stage scan: PASS (no Java syntax/truncation diagnostics; Android SDK
+  symbols are intentionally unavailable in this container)
+- AES-GCM tamper/AAD and BIP39 checksum harness: PASS
+- Media/document MIME classification harness: PASS
+- No layout XML directory: PASS
+- No stale APK, build output, keystore, or private signing kit: PASS
+
+Remaining authoritative gates
+- Android/Media3 compile, lint, tests, signing, and APK verification must run in the existing
+  GitHub Actions workflow because this container does not have the Android SDK/Gradle dependency
+  set.
+- After a green build, run V1_2_1_DEVICE_TEST_PLAN.txt on the tablet.

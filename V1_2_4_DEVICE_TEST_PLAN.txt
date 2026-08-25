@@ -1,0 +1,24 @@
+GOVIND PERSONAL VAULT v1.2.4 DEVICE TEST PLAN
+
+A. UPDATE SAFETY
+1. Install v1.2.4 directly over v1.2.3; do not uninstall.
+2. Confirm existing passwords, notes, media and documents remain available.
+3. Settings About card must show Govind Personal Vault 1.2.4, not 1.0.0.
+
+B. IMAGE VIEWER
+1. Open a long-named screenshot. The name should stay on one line with middle dots, extension visible.
+2. Confirm the pinch-zoom hint appears only in the top subtitle, not duplicated under the filename.
+3. Pinch-zoom, pan, and slide to the next photo still work.
+
+C. VIDEO PLAYER
+1. Open the vertical WhatsApp video in portrait. Overlay should be two compact rows, then hide after a few seconds of playback.
+2. Tap the video: controls return. Tap again: they hide while playing.
+3. Rotate to landscape. Face should remain visible (Fit), not cropped by Zoom.
+4. Resize can still cycle Fit / Zoom / Fill. Double-tap skip and volume/brightness swipes still work.
+5. Export and Delete remain available in portrait.
+
+D. SECURITY
+1. Screenshots still work (QA FLAG_SECURE off).
+2. Settings posture should say screenshot protection is off for QA.
+3. No Internet permission.
+4. Do not uninstall the previous app to update.

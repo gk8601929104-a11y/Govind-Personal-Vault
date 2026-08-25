@@ -1,0 +1,32 @@
+Govind Personal Vault v1.2.1 - Fullscreen Canvas and Player Gestures
+
+Requested device-test fixes:
+1. Remove the retained black strip below immersive landscape video.
+2. Make landscape video fill the tablet canvas by default while keeping Fit/Zoom/Fill choices.
+3. Add left-side brightness and right-side media-volume vertical swipe controls.
+
+Implemented architecture:
+- The player-specific insets listener removes retained system-gesture padding only during immersive video, eliminating the bottom strip without changing normal activity safe insets.
+- Landscape playback automatically selects Media3 Zoom before the user chooses a resize mode; Fit and Fill remain available.
+- Vertical swipe math uses the initial value captured on ACTION_DOWN: left half adjusts only the current window brightness, right half adjusts STREAM_MUSIC volume.
+- A programmatic overlay reports the percentage and hides automatically.
+- No network, storage, or global-settings permission was added. Encrypted on-the-fly playback, FLAG_SECURE, screen-off locking, and epoch invalidation remain unchanged.
+
+Identity/compatibility preserved:
+- Package: com.govind.personalvault
+- Existing database schema: unchanged (version 2)
+- Existing encrypted media format: unchanged
+- Update version: 1.2.1 (versionCode 5)
+- Existing installed app must be updated with the same signing key; do not uninstall it.
+
+Validation in this source package:
+- Repository signing-material scan
+- Source security/UI contract audit
+- Deterministic Unicode bidi-control scan
+- Shell syntax checks
+- Android XML parse
+- Workflow YAML parse
+- Java source structural/syntax scan
+- ZIP integrity and duplicate-entry scan
+
+The authoritative Android compile/sign/runtime check remains GitHub Actions plus device testing.

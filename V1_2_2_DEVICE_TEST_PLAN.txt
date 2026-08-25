@@ -1,0 +1,26 @@
+GOVIND PERSONAL VAULT v1.2.2 DEVICE TEST PLAN
+
+A. UPDATE SAFETY
+1. Install v1.2.2 directly over v1.2.1; do not uninstall.
+2. Confirm existing passwords, notes, media and documents remain available.
+
+B. IMAGE ZOOM / SLIDE
+1. Open an encrypted photo.
+2. Pinch out: image zooms. Pinch in: image shrinks.
+3. Drag while zoomed: image pans.
+4. Double-tap: zoom in. Double-tap again: fit.
+5. Slide left/right while not zoomed: next/previous photo.
+6. Confirm no plaintext image file appears in app storage.
+
+C. DOCUMENT OPEN
+1. Open an encrypted PDF. Confirm pages render inside the app.
+2. Pinch to zoom a PDF page. Slide to the next page.
+3. Open a TXT file and pinch to resize text.
+4. Open a DOCX if available and confirm readable text.
+5. Screen-off during preview: vault locks; no leftover plaintext file.
+6. Export still works. Delete still works.
+
+D. SECURITY
+1. FLAG_SECURE still blocks screenshots.
+2. No Internet permission.
+3. Do not uninstall the previous app to update.
