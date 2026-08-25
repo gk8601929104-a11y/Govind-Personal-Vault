@@ -202,6 +202,10 @@ public final class Ui {
         return button(context, text, withAlpha(PALETTE.danger, 28), PALETTE.danger, true, 1, withAlpha(PALETTE.danger, 90));
     }
 
+    public static Button destroy(Context context, String text) {
+        return button(context, text, PALETTE.danger, Color.WHITE, true, 0, 0);
+    }
+
     public static Button button(Context context, String text, int fill, int textColor, boolean bold) {
         return button(context, text, fill, textColor, bold, 0, 0);
     }

@@ -439,11 +439,19 @@ public final class VaultActivity extends BaseActivity {
         fileDetailMeta.setLineSpacing(0, 1.3f);
         panel.addView(fileDetailMeta, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 12));
         LinearLayout actions = Ui.horizontal(this);
+        Button open = Ui.secondary(this, "Open");
+        open.setOnClickListener(v -> {
+            if (selectedFile == null) return;
+            openFile(selectedFile);
+        });
         Button download = Ui.secondary(this, "↓ Download");
         download.setOnClickListener(v -> exportSelected(false));
         Button enc = Ui.secondary(this, "Export .enc");
         enc.setOnClickListener(v -> exportSelected(true));
-        actions.addView(download, new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1));
+        actions.addView(open, new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1));
+        LinearLayout.LayoutParams d = new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1);
+        d.leftMargin = Ui.dp(this, 8);
+        actions.addView(download, d);
         LinearLayout.LayoutParams e = new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1);
         e.leftMargin = Ui.dp(this, 8);
         actions.addView(enc, e);
@@ -468,20 +476,22 @@ public final class VaultActivity extends BaseActivity {
         itemDetailTitle.setMaxLines(1);
         itemDetailTitle.setEllipsize(TextUtils.TruncateAt.END);
         titleRow.addView(itemDetailTitle, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        Button edit = Ui.pill(this, "Edit", false);
+        edit.setOnClickListener(v -> {
+            if (selectedItem == null) return;
+            openEditor(selectedItem.kind, selectedItem.id);
+        });
+        titleRow.addView(edit);
         Button more = Ui.iconButton(this, "···", "More");
         more.setOnClickListener(this::showItemMenu);
-        titleRow.addView(more);
+        LinearLayout.LayoutParams moreParams = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 36));
+        moreParams.leftMargin = Ui.dp(this, 6);
+        titleRow.addView(more, moreParams);
         panel.addView(titleRow);
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         itemDetailBody = Ui.vertical(this);
         scroll.addView(itemDetailBody);
         panel.addView(scroll, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
-        Button edit = Ui.secondary(this, "Edit");
-        edit.setOnClickListener(v -> {
-            if (selectedItem == null) return;
-            openEditor(selectedItem.kind, selectedItem.id);
-        });
-        panel.addView(edit, Ui.margins(this, Ui.MATCH, Ui.dp(this, 48), 0, 12, 0, 0));
         panel.setVisibility(View.GONE);
         return panel;
     }
@@ -1005,7 +1015,8 @@ public final class VaultActivity extends BaseActivity {
             addMetaField("Note", selectedItem.notes);
         }
         addMetaField("Category", selectedItem.category);
-        addMetaField("Tags", selectedItem.tags);
+        addMetaField("Favorite", selectedItem.favorite ? "Yes" : "No");
+        addMetaField("Tags", selectedItem.tags == null || selectedItem.tags.trim().isEmpty() ? "none" : selectedItem.tags);
         addMetaField("Last updated", relativeTime(selectedItem.updatedAt));
     }
 
@@ -1020,11 +1031,24 @@ public final class VaultActivity extends BaseActivity {
         if (value == null || value.isEmpty()) return;
         itemDetailBody.addView(Ui.label(this, label), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 16, 0, 4));
         LinearLayout row = Ui.horizontal(this);
-        TextView text = Ui.text(this, "Password".equals(label) || "CVV".equals(label) ? "••••••••••••" : value, 15, palette.text);
+        boolean hideable = "Password".equals(label) || "CVV".equals(label) || "Number".equals(label);
+        final boolean[] hidden = { hideable };
+        TextView text = Ui.text(this, hideable ? "••••••••••••" : value, 15, palette.text);
         row.addView(text, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        if (hideable) {
+            Button eye = Ui.pill(this, "Show", false);
+            eye.setOnClickListener(v -> {
+                hidden[0] = !hidden[0];
+                text.setText(hidden[0] ? "••••••••••••" : value);
+                eye.setText(hidden[0] ? "Show" : "Hide");
+            });
+            row.addView(eye);
+        }
         Button copy = Ui.pill(this, "Copy", false);
         copy.setOnClickListener(v -> copySecret(label.toLowerCase(Locale.ROOT), value));
-        row.addView(copy);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 36));
+        copyParams.leftMargin = Ui.dp(this, 6);
+        row.addView(copy, copyParams);
         itemDetailBody.addView(row);
     }
 

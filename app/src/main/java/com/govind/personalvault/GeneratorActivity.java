@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -62,10 +63,10 @@ public final class GeneratorActivity extends BaseActivity {
         rebuildLengths();
 
         LinearLayout checks = Ui.vertical(this);
-        checks.addView(checkRow("Uppercase", upper, v -> { upper = ((CheckBox) v).isChecked(); generate(); }));
-        checks.addView(checkRow("Lowercase", lower, v -> { lower = ((CheckBox) v).isChecked(); generate(); }));
-        checks.addView(checkRow("Digits", digits, v -> { digits = ((CheckBox) v).isChecked(); generate(); }));
-        checks.addView(checkRow("Symbols", symbols, v -> { symbols = ((CheckBox) v).isChecked(); generate(); }));
+        checks.addView(checkRow("Uppercase", upper, (b, on) -> { upper = on; generate(); }));
+        checks.addView(checkRow("Lowercase", lower, (b, on) -> { lower = on; generate(); }));
+        checks.addView(checkRow("Digits", digits, (b, on) -> { digits = on; generate(); }));
+        checks.addView(checkRow("Symbols", symbols, (b, on) -> { symbols = on; generate(); }));
         page.addView(checks, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 16, 0, 0));
 
         Button copy = Ui.primary(this, "Copy password");
@@ -90,7 +91,7 @@ public final class GeneratorActivity extends BaseActivity {
         generate();
     }
 
-    private LinearLayout checkRow(String label, boolean on, android.widget.CompoundButton.OnCheckedChangeListener listener) {
+    private LinearLayout checkRow(String label, boolean on, CompoundButton.OnCheckedChangeListener listener) {
         LinearLayout row = Ui.horizontal(this);
         row.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
         CheckBox box = new CheckBox(this);

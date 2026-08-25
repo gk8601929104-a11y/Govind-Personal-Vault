@@ -82,7 +82,7 @@ public final class SettingsActivity extends BaseActivity {
         clipboardButton.setOnClickListener(v->cycleClipboard());
         page.addView(clipboardButton,new LinearLayout.LayoutParams(Ui.MATCH,Ui.dp(this,48)));
 
-        page.addView(Ui.heading(this,"Master PIN"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
+        page.addView(Ui.heading(this,"Master password"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
         page.addView(Ui.text(this,"This re-wraps the vault key. Existing items stay encrypted with the same data key.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,8));
         currentPin=Ui.pin(this,"Current PIN");newPin=Ui.pin(this,"New 6–12 digit PIN");confirmPin=Ui.pin(this,"Confirm new PIN");
         field(page,"Current",currentPin);field(page,"New",newPin);field(page,"Confirm new",confirmPin);
@@ -96,7 +96,7 @@ public final class SettingsActivity extends BaseActivity {
         Button lock=Ui.secondary(this,"Lock now");lock.setOnClickListener(v->{VaultSession.lock();finish();});page.addView(lock,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,10,0,0));
 
         page.addView(Ui.heading(this,"Encrypted backup"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
-        page.addView(Ui.text(this,"Exports the wrapped key and ciphertext. Useless without the PIN.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,10));
+        page.addView(Ui.text(this,"Exports the wrapped key and ciphertext. Useless without the master password.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,10));
         LinearLayout backupRow=Ui.horizontal(this);
         Button exportVault=Ui.primary(this,"Export vault");
         exportVault.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP,Ui.dp(this,44)));
@@ -115,7 +115,7 @@ public final class SettingsActivity extends BaseActivity {
 
         page.addView(Ui.heading(this,"Destroy vault"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
         page.addView(Ui.text(this,"Permanently wipes this device copy. There is no recovery without your phrase.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,10));
-        Button destroy=Ui.danger(this,"Destroy vault");destroy.setOnClickListener(v->confirmDestroy());page.addView(destroy,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,8,0,0));
+        Button destroy=Ui.destroy(this,"Destroy vault");destroy.setOnClickListener(v->confirmDestroy());page.addView(destroy,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,8,0,0));
 
         LinearLayout about=Ui.card(this);about.addView(Ui.heading(this,"Govind Personal Vault "+installedVersionName()));TextView aboutText=Ui.text(this,"Android 12+ · offline · AES-256-GCM",13,palette.muted);about.addView(aboutText,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,7,0,0));page.addView(about,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,22,0,0));
         scroll.addView(page,centeredScrollParams(720));root.addView(scroll,new LinearLayout.LayoutParams(Ui.MATCH,0,1));safeContentView(root);

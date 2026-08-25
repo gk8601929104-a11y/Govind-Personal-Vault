@@ -6,8 +6,8 @@ Govind Personal Vault is an offline Android 12+ application for passwords, secur
 
 ### Version 1.4.1 — Screenshot-matched detail, generator, forms
 
-- Tap a login, note, or card for a detail screen with copy, star, edit, and delete.
-- Generator length chips and character-class checkboxes. Encrypt-file / new-login forms match the screenshot layout.
+- Tap a login, note, or card for a detail screen with copy, reveal, header Edit, star, and delete.
+- Generator length chips and character-class checkboxes. File detail: Open, Download, Export .enc.
 - Encryption, package ID, GVM2 viewers, and signing are unchanged. Over-install on 1.4.0.
 
 ### Version 1.4.0 — Aegis-style vault
