@@ -117,7 +117,7 @@ public final class SettingsActivity extends BaseActivity {
         page.addView(Ui.text(this,"Permanently wipes this device copy. There is no recovery without your phrase.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,10));
         Button destroy=Ui.destroy(this,"Destroy vault");destroy.setOnClickListener(v->confirmDestroy());page.addView(destroy,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,8,0,0));
 
-        LinearLayout about=Ui.card(this);about.addView(Ui.heading(this,"Govind Personal Vault "+installedVersionName()));TextView aboutText=Ui.text(this,"Android 12+ · offline · AES-256-GCM",13,palette.muted);about.addView(aboutText,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,7,0,0));page.addView(about,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,22,0,0));
+        LinearLayout about=Ui.card(this);about.addView(Ui.heading(this,"Aegis "+installedVersionName()));TextView aboutText=Ui.text(this,"Android 12+ · offline · AES-256-GCM",13,palette.muted);about.addView(aboutText,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,7,0,0));page.addView(about,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,22,0,0));
         scroll.addView(page,centeredScrollParams(720));root.addView(scroll,new LinearLayout.LayoutParams(Ui.MATCH,0,1));safeContentView(root);
     }
 
@@ -222,7 +222,7 @@ public final class SettingsActivity extends BaseActivity {
                 return installed.trim();
             }
         } catch (PackageManager.NameNotFoundException | RuntimeException ignored) { }
-        return "1.4.1";
+        return "1.4.2";
     }
 
     private void updateBiometricStatus(){boolean enabled=SecurityManager.get(this).isBiometricEnabled();biometricStatus.setText(enabled?"Strong-biometric unlock is enabled on this device.":"Optional. Your PIN and recovery phrase continue to work independently.");biometric.setText(enabled?"Disable biometric unlock":"Enable strong biometric");}

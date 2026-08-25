@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Space;
 import android.widget.TextView;
@@ -188,6 +189,22 @@ public final class Ui {
         edit.setSaveEnabled(false);
         edit.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         return edit;
+    }
+
+    public static ImageView brandMark(Context context, int sizeDp) {
+        ImageView img = new ImageView(context);
+        img.setAdjustViewBounds(true);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        img.setContentDescription("Aegis");
+        try {
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(context.getAssets().open("aegis_shield.png"));
+            img.setImageBitmap(bmp);
+        } catch (Exception ignored) {}
+        int size = dp(context, sizeDp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+        lp.gravity = Gravity.CENTER_HORIZONTAL;
+        img.setLayoutParams(lp);
+        return img;
     }
 
     public static Button primary(Context context, String text) {

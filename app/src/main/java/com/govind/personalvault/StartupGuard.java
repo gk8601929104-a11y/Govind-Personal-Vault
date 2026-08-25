@@ -17,7 +17,7 @@ final class StartupGuard {
         try {
             LinearLayout page=new LinearLayout(activity); page.setOrientation(LinearLayout.VERTICAL); page.setGravity(Gravity.CENTER);
             int pad=dp(activity,24); page.setPadding(pad,pad,pad,pad); page.setBackgroundColor(Color.rgb(8,10,12));
-            TextView title=text(activity,"Govind Personal Vault",24,Color.rgb(236,240,238)); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); page.addView(title);
+            TextView title=text(activity,"Aegis",24,Color.rgb(196,165,116)); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); page.addView(title);
             String code=failure==null?"UNKNOWN":failure.getClass().getSimpleName();
             TextView info=text(activity,"Secure startup could not finish. No vault data was deleted.\n\nDiagnostic: "+code,15,Color.rgb(142,154,148));
             info.setGravity(Gravity.CENTER); info.setPadding(0,dp(activity,14),0,dp(activity,20)); page.addView(info);

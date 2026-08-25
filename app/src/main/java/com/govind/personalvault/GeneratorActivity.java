@@ -36,7 +36,7 @@ public final class GeneratorActivity extends BaseActivity {
         Button back = Ui.iconButton(this, "‹", "Back");
         back.setOnClickListener(v -> finish());
         top.addView(back);
-        TextView brand = Ui.text(this, "Vault", 16, palette.text);
+        TextView brand = Ui.text(this, "Aegis", 16, palette.text);
         brand.setTypeface(Ui.serif());
         top.addView(brand, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
         root.addView(top);

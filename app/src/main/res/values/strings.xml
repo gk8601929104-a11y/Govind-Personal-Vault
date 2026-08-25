@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Govind Personal Vault</string>
-    <string name="app_description">Private offline storage for passwords, notes, media, and encrypted documents</string>
+    <string name="app_name">Aegis</string>
+    <string name="app_description">Private vault. Offline AES-256-GCM storage for passwords, notes, cards, and files.</string>
 </resources>

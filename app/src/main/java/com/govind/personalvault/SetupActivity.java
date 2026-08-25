@@ -55,6 +55,11 @@ public final class SetupActivity extends BaseActivity {
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setClipToPadding(false);
         LinearLayout page=Ui.vertical(this); page.setPadding(Ui.dp(this,20),Ui.dp(this,22),Ui.dp(this,20),Ui.dp(this,30));
 
+        page.addView(Ui.brandMark(this, 96));
+        TextView word=Ui.title(this,"AEGIS");word.setGravity(Gravity.CENTER);word.setLetterSpacing(0.18f);
+        page.addView(word);
+        TextView sub=Ui.text(this,"Private vault",14,palette.muted);sub.setGravity(Gravity.CENTER);sub.setLetterSpacing(0.12f);
+        page.addView(sub,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,16));
         TextView badge=Ui.badge(this,"OFFLINE • ENCRYPTED",palette.accent); page.addView(badge,Ui.margins(this,Ui.WRAP,Ui.WRAP,0,0,0,14));
         page.addView(Ui.title(this,"Create your private vault"));
         TextView intro=Ui.text(this,"Passwords and private notes stay on this device. No account, cloud, ads, or network permission.",15,palette.muted);

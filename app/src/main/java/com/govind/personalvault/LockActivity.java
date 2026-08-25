@@ -45,11 +45,12 @@ public final class LockActivity extends BaseActivity {
     private void build(){
         LinearLayout root=Ui.vertical(this);root.setGravity(Gravity.CENTER);root.setBackgroundColor(palette.bg);root.setPadding(Ui.dp(this,24),Ui.dp(this,28),Ui.dp(this,24),Ui.dp(this,28));
         LinearLayout panel=Ui.card(this);
-        TextView brand=Ui.badge(this,"OFFLINE VAULT",palette.accent);brand.setGravity(Gravity.CENTER);
-        LinearLayout brandWrap=Ui.vertical(this);brandWrap.setGravity(Gravity.CENTER);brandWrap.addView(brand,new LinearLayout.LayoutParams(Ui.WRAP,Ui.WRAP));
-        panel.addView(brandWrap,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,2,0,10));
-        TextView mark=Ui.text(this,"◆",40,palette.accent);mark.setGravity(Gravity.CENTER);panel.addView(mark,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,0));
-        TextView title=Ui.title(this,"Vault locked");title.setGravity(Gravity.CENTER);panel.addView(title,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,10,0,0));
+        panel.addView(Ui.brandMark(this, 108));
+        TextView word=Ui.title(this,"AEGIS");word.setGravity(Gravity.CENTER);word.setLetterSpacing(0.18f);
+        panel.addView(word,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,10,0,0));
+        TextView sub=Ui.text(this,"Private vault",14,palette.muted);sub.setGravity(Gravity.CENTER);sub.setLetterSpacing(0.12f);
+        panel.addView(sub,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,0));
+        TextView title=Ui.heading(this,"Unlock");title.setGravity(Gravity.CENTER);panel.addView(title,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,16,0,0));
         TextView detail=Ui.text(this,"Unlock on this device. The vault key never leaves the phone.",14,palette.muted);detail.setGravity(Gravity.CENTER);panel.addView(detail,Ui.margins(this,Ui.MATCH,Ui.WRAP,0,8,0,18));
         pin=Ui.pin(this,"Enter PIN");panel.addView(pin);
         unlock=Ui.primary(this,"Unlock vault");unlock.setOnClickListener(v->unlockPin());panel.addView(unlock,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,14,0,0));
@@ -80,7 +81,7 @@ public final class LockActivity extends BaseActivity {
     }
 
     private void showBiometricPrompt(Cipher cipher){
-        BiometricPrompt prompt=new BiometricPrompt.Builder(this).setTitle("Unlock Govind Personal Vault")
+        BiometricPrompt prompt=new BiometricPrompt.Builder(this).setTitle("Unlock Aegis")
                 .setSubtitle("Use a strong biometric").setNegativeButton("Use PIN",getMainExecutor(),(dialog,which)->setBusy(false,"")).build();
         prompt.authenticate(new BiometricPrompt.CryptoObject(cipher),null,getMainExecutor(),new BiometricPrompt.AuthenticationCallback(){
             @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result){

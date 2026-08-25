@@ -158,7 +158,7 @@ public final class VaultActivity extends BaseActivity {
         Button menu = Ui.iconButton(this, "≡", "Menu");
         menu.setOnClickListener(v -> openDrawer());
         top.addView(menu);
-        TextView brand = Ui.text(this, "🛡  Vault", 16, palette.text);
+        TextView brand = Ui.text(this, "Aegis", 16, palette.text);
         brand.setTypeface(Ui.serif());
         brand.setPadding(Ui.dp(this, 10), 0, 0, 0);
         top.addView(brand, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
@@ -184,7 +184,7 @@ public final class VaultActivity extends BaseActivity {
         LinearLayout headingRow = Ui.horizontal(this);
         headingRow.setPadding(Ui.dp(this, 18), Ui.dp(this, 6), Ui.dp(this, 18), 0);
         LinearLayout titles = Ui.vertical(this);
-        pageTitle = Ui.display(this, "Vault");
+        pageTitle = Ui.display(this, "Aegis");
         pageTitle.setTextSize(28);
         pageTitle.setSingleLine(true);
         pageTitle.setEllipsize(TextUtils.TruncateAt.END);
@@ -528,7 +528,7 @@ public final class VaultActivity extends BaseActivity {
         panel.setBackgroundColor(palette.surface);
         panel.setPadding(Ui.dp(this, 16), Ui.dp(this, 18), Ui.dp(this, 16), Ui.dp(this, 12));
         LinearLayout head = Ui.horizontal(this);
-        head.addView(Ui.heading(this, "Vault"), new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        head.addView(Ui.heading(this, "Aegis"), new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
         Button close = Ui.iconButton(this, "×", "Close");
         close.setOnClickListener(v -> closeDrawer());
         head.addView(close);
@@ -669,7 +669,7 @@ public final class VaultActivity extends BaseActivity {
             emptySubtitle.setText("Drop a document into the vault. It is encrypted before it is stored.");
             emptyAction.setText("+ Encrypt file");
         } else {
-            pageTitle.setText("Vault");
+            pageTitle.setText("Aegis");
             pageSubtitle.setText("");
         }
         rebuildChips();

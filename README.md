@@ -2,9 +2,13 @@
 
 Govind Personal Vault is an offline Android 12+ application for passwords, secure notes, encrypted private media, and encrypted documents. It uses a 100% programmatic Android UI: there are no layout XML files.
 
-## Current release: 1.4.1 (versionCode 18)
+## Current release: 1.4.2 (versionCode 19)
 
-### Version 1.4.1 — Screenshot-matched detail, generator, forms
+### Version 1.4.2 — Aegis mark
+
+- App name is **Aegis**. Private vault. Launcher icon is the steel-and-gold shield.
+- Package ID, GVM2, AES-256-GCM, and signing are unchanged. Over-install on 1.4.1.
+
 
 - Tap a login, note, or card for a detail screen with copy, reveal, header Edit, star, and delete.
 - Generator length chips and character-class checkboxes. File detail: Open, Download, Export .enc.
