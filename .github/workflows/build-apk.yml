@@ -37,20 +37,27 @@ jobs:
             -name 'Govind_Personal_Vault_GitHub_Public_Repo_v*.zip' \
             -printf '%f\n' | sort -V)
 
-          if [[ ${#archives[@]} -ne 1 ]]; then
-            echo "Keep exactly one public source ZIP in the repository." >&2
-            printf 'Found: %s\n' "${archives[@]:-none}" >&2
+          if [[ ${#archives[@]} -eq 1 ]]; then
+            echo "Using source ZIP: ${archives[0]}"
+            rm -rf extracted
+            mkdir -p extracted
+            unzip -q "${archives[0]}" -d extracted
+
+            manifest="$(find extracted -type f \
+              -path '*/app/src/main/AndroidManifest.xml' -print -quit)"
+            [[ -n "$manifest" ]] || { echo "AndroidManifest.xml not found in ZIP." >&2; exit 1; }
+            project_dir="${manifest%/app/src/main/AndroidManifest.xml}"
+            echo "SOURCE_ARCHIVE=${archives[0]}" >> "$GITHUB_ENV"
+          elif [[ -f "app/version.properties" && -f "app/src/main/AndroidManifest.xml" ]]; then
+            echo "No ZIP found — using checked-out source tree at repository root."
+            project_dir="."
+            echo "SOURCE_ARCHIVE=source-tree" >> "$GITHUB_ENV"
+          else
+            echo "Keep exactly one public source ZIP in the repository, OR commit the full source tree (app/version.properties + AndroidManifest.xml)." >&2
+            printf 'Found ZIPs: %s\n' "${archives[@]:-none}" >&2
             exit 1
           fi
 
-          rm -rf extracted
-          mkdir -p extracted
-          unzip -q "${archives[0]}" -d extracted
-
-          manifest="$(find extracted -type f \
-            -path '*/app/src/main/AndroidManifest.xml' -print -quit)"
-          [[ -n "$manifest" ]] || { echo "AndroidManifest.xml not found." >&2; exit 1; }
-          project_dir="${manifest%/app/src/main/AndroidManifest.xml}"
           config="$project_dir/app/version.properties"
           [[ -f "$config" ]] || { echo "app/version.properties not found." >&2; exit 1; }
 
@@ -62,7 +69,6 @@ jobs:
           : "${BUILD_TOOLS_VERSION:?Missing BUILD_TOOLS_VERSION}"
           : "${APK_BASENAME:?Missing APK_BASENAME}"
 
-          echo "SOURCE_ARCHIVE=${archives[0]}" >> "$GITHUB_ENV"
           echo "PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
