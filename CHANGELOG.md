@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.3 (version code 20)
+
+- Backup import now validates the wrapped key and writes atomically, so a bad file cannot wipe a working vault.
+- Zip restore rejects path traversal and oversized archives. Destroy vault also wipes Keystore aliases.
+- File detail is a full screen (Open / Download / Export .enc). Encryption unchanged. Over-install on 1.4.2.
+
 ## 1.4.2 (version code 19)
 
 - Brand: launcher name **Aegis**, subtitle Private vault, steel-and-gold shield icon.

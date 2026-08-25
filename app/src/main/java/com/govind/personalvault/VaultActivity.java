@@ -648,7 +648,7 @@ public final class VaultActivity extends BaseActivity {
             pageTitle.setText("Passwords");
             pageSubtitle.setText("Logins encrypted on this device.");
             addButton.setText("+ New login");
-            emptySubtitle.setText("No logins yet. Add a site and the vault will keep the secret.");
+            emptySubtitle.setText("No logins yet. Add a site and Aegis will keep the secret.");
             emptyAction.setText("+ New login");
         } else if (VaultItem.NOTE.equals(tab)) {
             pageTitle.setText("Notes");

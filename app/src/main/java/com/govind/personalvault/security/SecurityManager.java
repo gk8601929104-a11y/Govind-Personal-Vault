@@ -255,6 +255,12 @@ public final class SecurityManager {
         try { deleteKey(BIOMETRIC_ALIAS); } catch (GeneralSecurityException ignored) { }
     }
 
+    public void wipeIdentity() {
+        prefs.edit().clear().commit();
+        try { deleteKey(PIN_PEPPER_ALIAS); } catch (Exception ignored) { }
+        try { deleteKey(BIOMETRIC_ALIAS); } catch (Exception ignored) { }
+    }
+
     public String encryptField(String itemId, String field, String value) throws GeneralSecurityException {
         return encryptText("record|" + itemId + "|" + field + "|v1", value);
     }

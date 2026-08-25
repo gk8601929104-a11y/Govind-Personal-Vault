@@ -253,7 +253,10 @@ public abstract class BaseActivity extends ComponentActivity {
         new Handler(Looper.getMainLooper()).postDelayed(()->{
             try {
                 ClipData current=manager.getPrimaryClip();
-                if(current!=null&&current.getItemCount()>0&&value.contentEquals(current.getItemAt(0).coerceToText(this))){manager.clearPrimaryClip();sensitiveClipboardValue=null;}
+                if(current==null||current.getItemCount()<=0)return;
+                android.content.ClipData.Item first=current.getItemAt(0);
+                CharSequence text=first==null?null:first.coerceToText(this);
+                if(text!=null&&value.contentEquals(text)){manager.clearPrimaryClip();sensitiveClipboardValue=null;}
             } catch(RuntimeException ignored){ }
         }, clearAfter);
     }
@@ -279,7 +282,11 @@ public abstract class BaseActivity extends ComponentActivity {
         try {
             ClipboardManager manager=(ClipboardManager)context.getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData current=manager==null?null:manager.getPrimaryClip();
-            if(manager!=null&&current!=null&&current.getItemCount()>0&&expected.contentEquals(current.getItemAt(0).coerceToText(context)))manager.clearPrimaryClip();
+            if(manager!=null&&current!=null&&current.getItemCount()>0){
+                android.content.ClipData.Item first=current.getItemAt(0);
+                CharSequence text=first==null?null:first.coerceToText(context);
+                if(text!=null&&expected.contentEquals(text))manager.clearPrimaryClip();
+            }
         } catch(RuntimeException ignored){ }
         sensitiveClipboardValue=null;
     }

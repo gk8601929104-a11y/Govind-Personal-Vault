@@ -205,7 +205,7 @@ public final class SettingsActivity extends BaseActivity {
         java.io.File[] files=media.listFiles();
         if(files!=null) for(java.io.File file:files) file.delete();
         media.delete();
-        getSharedPreferences("vault_security_v1", MODE_PRIVATE).edit().clear().commit();
+        SecurityManager.get(this).wipeIdentity();
         VaultPrefs.prefs(this).edit().clear().commit();
         message("Vault destroyed");
         Intent setup=new Intent(this, SetupActivity.class);
@@ -222,7 +222,7 @@ public final class SettingsActivity extends BaseActivity {
                 return installed.trim();
             }
         } catch (PackageManager.NameNotFoundException | RuntimeException ignored) { }
-        return "1.4.2";
+        return "1.4.3";
     }
 
     private void updateBiometricStatus(){boolean enabled=SecurityManager.get(this).isBiometricEnabled();biometricStatus.setText(enabled?"Strong-biometric unlock is enabled on this device.":"Optional. Your PIN and recovery phrase continue to work independently.");biometric.setText(enabled?"Disable biometric unlock":"Enable strong biometric");}

@@ -84,28 +84,49 @@ public final class VaultBackup {
         File staging = new File(context.getCacheDir(), "vault-import");
         deleteTree(staging);
         if (!staging.mkdirs()) throw new IOException("Import staging failed");
+        long total = 0L;
+        int entries = 0;
         try (InputStream input = context.getContentResolver().openInputStream(uri);
              ZipInputStream zip = new ZipInputStream(input)) {
             if (input == null) throw new IOException("Backup could not be opened");
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
-                String name = entry.getName();
-                if (name.contains("..")) continue;
-                File out = new File(staging, name);
+                entries++;
+                if (entries > 10_000) throw new IOException("Backup has too many files");
+                if (entry.isDirectory()) {
+                    zip.closeEntry();
+                    continue;
+                }
+                File out = safeZipFile(staging, entry.getName());
                 File parent = out.getParentFile();
                 if (parent != null && !parent.exists() && !parent.mkdirs()) {
                     throw new IOException("Import path could not be created");
                 }
+                long written = 0L;
                 try (FileOutputStream dest = new FileOutputStream(out)) {
                     byte[] buffer = new byte[16 * 1024];
                     int read;
-                    while ((read = zip.read(buffer)) >= 0) dest.write(buffer, 0, read);
+                    while ((read = zip.read(buffer)) >= 0) {
+                        written += read;
+                        total += read;
+                        if (written > 512L * 1024 * 1024) throw new IOException("Backup file is too large");
+                        if (total > 2L * 1024 * 1024 * 1024) throw new IOException("Backup is too large");
+                        dest.write(buffer, 0, read);
+                    }
                 }
                 zip.closeEntry();
             }
         }
         File db = new File(staging, "vault.db");
         if (!db.isFile()) throw new IOException("Backup is missing the vault database");
+        File security = new File(staging, "security.json");
+        if (!security.isFile()) throw new IOException("Backup is missing security.json");
+        String json = new String(java.nio.file.Files.readAllBytes(security.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        JSONObject object = new JSONObject(json);
+        if (object.optString("pin_wrapper", "").isEmpty() || object.optString("pin_salt", "").isEmpty()) {
+            throw new IOException("Backup is missing the wrapped key");
+        }
+
         VaultDb.shutdown();
         copyReplace(db, context.getDatabasePath("govind_personal_vault.db"));
         File wal = new File(staging, "vault.db-wal");
@@ -116,7 +137,7 @@ public final class VaultBackup {
         if (shm.isFile()) copyReplace(shm, destShm); else destShm.delete();
         File mediaDest = new File(context.getFilesDir(), "media");
         deleteTree(mediaDest);
-        mediaDest.mkdirs();
+        if (!mediaDest.mkdirs() && !mediaDest.isDirectory()) throw new IOException("Media folder could not be restored");
         File mediaSrc = new File(staging, "media");
         File[] mediaFiles = mediaSrc.listFiles();
         if (mediaFiles != null) {
@@ -124,25 +145,20 @@ public final class VaultBackup {
                 if (file.isFile()) copyReplace(file, new File(mediaDest, file.getName()));
             }
         }
-        File security = new File(staging, "security.json");
-        if (security.isFile()) {
-            String json = new String(java.nio.file.Files.readAllBytes(security.toPath()), java.nio.charset.StandardCharsets.UTF_8);
-            JSONObject object = new JSONObject(json);
-            SharedPreferences.Editor editor = context.getSharedPreferences("vault_security_v1", Context.MODE_PRIVATE).edit().clear();
-            java.util.Iterator<String> keys = object.keys();
-            while (keys.hasNext()) {
-                String key = keys.next();
-                String value = object.optString(key, "");
-                if ("pin_iterations".equals(key) || "recovery_iterations".equals(key)) {
-                    try { editor.putInt(key, Integer.parseInt(value)); } catch (NumberFormatException ignored) { editor.putString(key, value); }
-                } else if ("biometric_enabled".equals(key)) {
-                    editor.putBoolean(key, "true".equalsIgnoreCase(value));
-                } else {
-                    editor.putString(key, value);
-                }
+        SharedPreferences.Editor editor = context.getSharedPreferences("vault_security_v1", Context.MODE_PRIVATE).edit().clear();
+        java.util.Iterator<String> keys = object.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            String value = object.optString(key, "");
+            if ("pin_iterations".equals(key) || "recovery_iterations".equals(key)) {
+                try { editor.putInt(key, Integer.parseInt(value)); } catch (NumberFormatException ignored) { editor.putString(key, value); }
+            } else if ("biometric_enabled".equals(key)) {
+                editor.putBoolean(key, "true".equalsIgnoreCase(value));
+            } else {
+                editor.putString(key, value);
             }
-            if (!editor.commit()) throw new IOException("Security material could not be restored");
         }
+        if (!editor.commit()) throw new IOException("Security material could not be restored");
         deleteTree(staging);
     }
 
@@ -172,7 +188,7 @@ public final class VaultBackup {
         java.util.UUID storedId = new java.util.UUID(values.getLong(), values.getLong());
         if (magic != MediaFileFormat.MAGIC || version != MediaFileFormat.VERSION || clearLength < 0L) {
             staging.delete();
-            throw new IOException("Not a Govind vault .enc file");
+            throw new IOException("Not a vault .enc file");
         }
         File dest = MediaFileFormat.finalFile(context, storedId);
         copyReplace(staging, dest);
@@ -195,6 +211,17 @@ public final class VaultBackup {
             VaultDb.get(context).updateMediaMetaNow(record);
         }
         return record.id;
+    }
+
+    private static File safeZipFile(File staging, String name) throws IOException {
+        if (name == null || name.isEmpty()) throw new IOException("Invalid backup entry");
+        String normalized = name.replace('\\', '/');
+        if (normalized.startsWith("/") || normalized.contains("..")) throw new IOException("Invalid backup entry");
+        File out = new File(staging, normalized);
+        String root = staging.getCanonicalPath();
+        String path = out.getCanonicalPath();
+        if (!path.equals(root) && !path.startsWith(root + File.separator)) throw new IOException("Invalid backup entry");
+        return out;
     }
 
     private static void putFile(ZipOutputStream zip, String name, File file) throws IOException {
