@@ -14,3 +14,5 @@
 *.keystore
 dist/
 extracted/
+*.zip
+!Govind_Personal_Vault_GitHub_Public_Repo_v*.zip
