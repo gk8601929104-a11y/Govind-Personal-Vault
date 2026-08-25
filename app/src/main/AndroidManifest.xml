@@ -30,6 +30,8 @@
             android:resizeableActivity="true"
             android:supportsPictureInPicture="false" />
         <activity android:name=".MediaVaultActivity" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".GeneratorActivity" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".FileEditorActivity" android:exported="false" android:launchMode="singleTop" />
         <activity android:name=".SettingsActivity" android:exported="false" android:launchMode="singleTop" />
         <activity android:name=".DeleteConfirmActivity" android:exported="false" android:launchMode="singleTop" />
         <activity android:name=".EntryEditorActivity" android:exported="false" android:launchMode="singleTop" />

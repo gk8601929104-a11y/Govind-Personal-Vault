@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -13,6 +14,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+
+import com.govind.personalvault.media.VaultBackup;
 import com.govind.personalvault.security.SecureWork;
 import com.govind.personalvault.security.SecurityManager;
 import com.govind.personalvault.security.VaultSession;
@@ -35,8 +40,19 @@ public final class SettingsActivity extends BaseActivity {
     private Button autolockButton;
     private Button darkButton;
     private Button lightButton;
+    private ActivityResultLauncher<String[]> importBackup;
+    private ActivityResultLauncher<String[]> importEnc;
 
-    @Override protected void onCreate(Bundle state){super.onCreate(state);build();}
+    @Override protected void onCreate(Bundle state){
+        super.onCreate(state);
+        importBackup = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+            if (uri != null) confirmImport(uri);
+        });
+        importEnc = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+            if (uri != null) importEncFile(uri);
+        });
+        build();
+    }
 
     private void build(){
         LinearLayout root=Ui.vertical(this);root.setBackgroundColor(palette.bg);root.addView(topBar("The vault","Appearance, lock timing, backup, and the master PIN.",true,null,null));
@@ -79,6 +95,24 @@ public final class SettingsActivity extends BaseActivity {
         page.addView(Ui.heading(this,"Session"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
         Button lock=Ui.secondary(this,"Lock now");lock.setOnClickListener(v->{VaultSession.lock();finish();});page.addView(lock,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,10,0,0));
 
+        page.addView(Ui.heading(this,"Encrypted backup"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
+        page.addView(Ui.text(this,"Exports the wrapped key and ciphertext. Useless without the PIN.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,10));
+        LinearLayout backupRow=Ui.horizontal(this);
+        Button exportVault=Ui.primary(this,"Export vault");
+        exportVault.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP,Ui.dp(this,44)));
+        exportVault.setOnClickListener(v->exportVault());
+        Button importVault=Ui.secondary(this,"Import backup");
+        importVault.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP,Ui.dp(this,44)));
+        LinearLayout.LayoutParams importParams=new LinearLayout.LayoutParams(Ui.WRAP,Ui.dp(this,44));
+        importParams.leftMargin=Ui.dp(this,8);
+        importVault.setOnClickListener(v->importBackup.launch(new String[]{"application/zip","*/*"}));
+        backupRow.addView(exportVault);
+        backupRow.addView(importVault,importParams);
+        page.addView(backupRow);
+        Button importEncButton=Ui.secondary(this,"Import .enc file");
+        importEncButton.setOnClickListener(v->importEnc.launch(new String[]{"*/*"}));
+        page.addView(importEncButton,Ui.margins(this,Ui.WRAP,Ui.dp(this,44),0,10,0,0));
+
         page.addView(Ui.heading(this,"Destroy vault"),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,28,0,0));
         page.addView(Ui.text(this,"Permanently wipes this device copy. There is no recovery without your phrase.",13,palette.muted),Ui.margins(this,Ui.MATCH,Ui.WRAP,0,4,0,10));
         Button destroy=Ui.danger(this,"Destroy vault");destroy.setOnClickListener(v->confirmDestroy());page.addView(destroy,Ui.margins(this,Ui.MATCH,Ui.dp(this,52),0,8,0,0));
@@ -120,6 +154,40 @@ public final class SettingsActivity extends BaseActivity {
         clipboardButton.setText(VaultPrefs.clipboardLabel(next));
     }
 
+    private void exportVault(){
+        message("Exporting encrypted backup…");
+        task=SecureWork.submit(()->VaultBackup.export(this),(uri,error)->{
+            if(error!=null){SettingsActivity.this.error(error);return;}
+            message("Backup saved to Downloads/Govind Personal Vault");
+        });
+    }
+
+    private void confirmImport(Uri uri){
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Import backup")
+                .setMessage("This replaces the vault on this phone with the backup. The current copy is overwritten.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Import", (d,w)->{
+                    task=SecureWork.submit(()->{VaultBackup.importArchive(this, uri);return Boolean.TRUE;},(ok,error)->{
+                        if(error!=null){SettingsActivity.this.error(error);return;}
+                        VaultSession.lock();
+                        message("Backup restored. Unlock with the backup PIN.");
+                        Intent lock=new Intent(this, LockActivity.class);
+                        lock.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(lock);
+                        finish();
+                    });
+                })
+                .show();
+    }
+
+    private void importEncFile(Uri uri){
+        task=SecureWork.submit(()->VaultBackup.importEnc(this, uri),(id,error)->{
+            if(error!=null){SettingsActivity.this.error(error);return;}
+            message("Added to vault");
+        });
+    }
+
     private void confirmDestroy(){
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Destroy vault")
@@ -154,7 +222,7 @@ public final class SettingsActivity extends BaseActivity {
                 return installed.trim();
             }
         } catch (PackageManager.NameNotFoundException | RuntimeException ignored) { }
-        return "1.3.0";
+        return "1.4.0";
     }
 
     private void updateBiometricStatus(){boolean enabled=SecurityManager.get(this).isBiometricEnabled();biometricStatus.setText(enabled?"Strong-biometric unlock is enabled on this device.":"Optional. Your PIN and recovery phrase continue to work independently.");biometric.setText(enabled?"Disable biometric unlock":"Enable strong biometric");}

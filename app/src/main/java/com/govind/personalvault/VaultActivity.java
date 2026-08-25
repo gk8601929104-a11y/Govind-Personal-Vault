@@ -2,7 +2,6 @@ package com.govind.personalvault;
 
 import android.content.Intent;
 import android.graphics.Typeface;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,11 +18,10 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.govind.personalvault.data.VaultDb;
 import com.govind.personalvault.media.MediaRepository;
@@ -33,11 +31,13 @@ import com.govind.personalvault.security.VaultSession;
 import com.govind.personalvault.ui.Ui;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
 public final class VaultActivity extends BaseActivity {
     private static final int DELETE_REQUEST = 73;
+    private static final int FILE_EDITOR_REQUEST = 74;
     private static final long SEARCH_DEBOUNCE_MS = 300L;
     private static final String TAB_OVERVIEW = "overview";
     private static final String TAB_FILES = "files";
@@ -49,48 +49,72 @@ public final class VaultActivity extends BaseActivity {
     private final Runnable pendingSearch = () -> {
         if (active && VaultSession.isUnlocked()) loadCurrent();
     };
-    private final ArrayList<Uri> pendingImportUris = new ArrayList<>();
 
     private String selectedTab = TAB_OVERVIEW;
     private String selectedFilter = FILTER_ALL;
-    private ActivityResultLauncher<String[]> picker;
     private LinearLayout overviewPanel;
-    private LinearLayout headerActions;
     private LinearLayout chipsRow;
     private View searchBox;
     private EditText search;
     private TextView clearSearch;
     private TextView pageTitle;
     private TextView pageSubtitle;
+    private TextView greeting;
+    private TextView greetingSub;
     private TextView countPasswords;
     private TextView countNotes;
     private TextView countCards;
     private TextView countFiles;
+    private TextView weakCount;
+    private TextView reusedCount;
+    private TextView favoriteCount;
+    private TextView weakHint;
+    private TextView reusedHint;
+    private TextView favoriteHint;
+    private LinearLayout recentList;
+    private LinearLayout favoriteList;
+    private LinearLayout startCard;
     private Button addButton;
     private Button emptyAction;
     private TextView emptyTitle;
     private TextView emptySubtitle;
     private LinearLayout emptyState;
     private ListView list;
+    private LinearLayout fileDetail;
+    private TextView fileDetailTitle;
+    private TextView fileDetailMeta;
     private ItemAdapter adapter;
     private FileAdapter fileAdapter;
     private VaultDb.Task listTask;
     private VaultDb.Task countTask;
-    private MediaRepository.Task importTask;
+    private MediaRepository.Task actionTask;
     private LinearLayout[] navItems;
     private String[] navIds;
+    private LinearLayout drawer;
+    private View dim;
+    private boolean drawerOpen;
     private boolean suppressSearch;
-    private boolean importing;
     private long loadGeneration;
+    private MediaItemRecord selectedFile;
+    private TextView drawerCountPasswords;
+    private TextView drawerCountNotes;
+    private TextView drawerCountCards;
+    private TextView drawerCountFiles;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        picker = registerForActivityResult(
-                new ActivityResultContracts.OpenMultipleDocuments(),
-                this::onFilesSelected);
         build();
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {
+                if (drawerOpen) {
+                    closeDrawer();
+                    return;
+                }
+                if (selectedFile != null) {
+                    selectedFile = null;
+                    renderFileDetail();
+                    return;
+                }
                 if (!TAB_OVERVIEW.equals(selectedTab)) {
                     selectTab(TAB_OVERVIEW);
                     return;
@@ -114,39 +138,57 @@ public final class VaultActivity extends BaseActivity {
     }
 
     private void build() {
-        LinearLayout root = Ui.vertical(this);
-        root.setBackgroundColor(palette.bg);
+        FrameLayout root = new FrameLayout(this);
 
-        LinearLayout top = Ui.vertical(this);
-        top.setPadding(Ui.dp(this, 18), Ui.dp(this, 8), Ui.dp(this, 18), Ui.dp(this, 4));
+        LinearLayout shell = Ui.vertical(this);
+        shell.setBackgroundColor(palette.bg);
+
+        LinearLayout top = Ui.horizontal(this);
+        top.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6));
+        Button menu = Ui.iconButton(this, "≡", "Menu");
+        menu.setOnClickListener(v -> openDrawer());
+        top.addView(menu);
+        TextView brand = Ui.text(this, "🛡  Vault", 16, palette.text);
+        brand.setTypeface(Ui.serif());
+        brand.setPadding(Ui.dp(this, 10), 0, 0, 0);
+        top.addView(brand, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        Button searchBtn = Ui.iconButton(this, "⌕", "Search");
+        searchBtn.setOnClickListener(v -> {
+            if (TAB_OVERVIEW.equals(selectedTab) || "generator".equals(selectedTab)) selectTab(VaultItem.PASSWORD);
+            if (search != null) {
+                search.requestFocus();
+                android.view.inputmethod.InputMethodManager imm =
+                        (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(search, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+        top.addView(searchBtn);
+        Button lock = Ui.iconButton(this, "⚿", "Lock");
+        lock.setOnClickListener(v -> lockNow());
+        top.addView(lock);
+        shell.addView(top);
+
+        LinearLayout headingRow = Ui.horizontal(this);
+        headingRow.setPadding(Ui.dp(this, 18), Ui.dp(this, 6), Ui.dp(this, 18), 0);
+        LinearLayout titles = Ui.vertical(this);
         pageTitle = Ui.display(this, "Vault");
         pageTitle.setTextSize(28);
         pageTitle.setSingleLine(true);
-        pageTitle.setMaxLines(1);
         pageTitle.setEllipsize(TextUtils.TruncateAt.END);
-        top.addView(pageTitle);
-
-        LinearLayout subRow = Ui.horizontal(this);
-        pageSubtitle = Ui.text(this, "Encrypted on this device.", 13, palette.muted);
+        pageSubtitle = Ui.text(this, "", 13, palette.muted);
         pageSubtitle.setMaxLines(2);
-        subRow.addView(pageSubtitle, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
-        headerActions = Ui.horizontal(this);
-        Button settings = Ui.pill(this, "Settings", false);
-        settings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
-        headerActions.addView(settings);
-        addButton = Ui.primary(this, "+ New");
+        titles.addView(pageTitle);
+        titles.addView(pageSubtitle, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
+        headingRow.addView(titles, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        addButton = Ui.primary(this, "+ New login");
         addButton.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40)));
         addButton.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
         addButton.setOnClickListener(v -> primaryAction());
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40));
-        addParams.leftMargin = Ui.dp(this, 8);
-        headerActions.addView(addButton, addParams);
-        subRow.addView(headerActions);
-        top.addView(subRow, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 0));
-        root.addView(top);
+        headingRow.addView(addButton);
+        shell.addView(headingRow);
 
         searchBox = buildSearchBox();
-        root.addView(searchBox, Ui.margins(this, Ui.MATCH, Ui.WRAP, 18, 8, 18, 0));
+        shell.addView(searchBox, Ui.margins(this, Ui.MATCH, Ui.WRAP, 18, 10, 18, 0));
 
         HorizontalScrollView chipScroll = new HorizontalScrollView(this);
         chipScroll.setHorizontalScrollBarEnabled(false);
@@ -154,36 +196,13 @@ public final class VaultActivity extends BaseActivity {
         chipScroll.setPadding(0, 0, Ui.dp(this, 18), 0);
         chipsRow = Ui.horizontal(this);
         chipScroll.addView(chipsRow);
-        root.addView(chipScroll, Ui.margins(this, Ui.MATCH, Ui.WRAP, 12, 10, 12, 4));
+        shell.addView(chipScroll, Ui.margins(this, Ui.MATCH, Ui.WRAP, 12, 10, 12, 4));
 
-        overviewPanel = Ui.vertical(this);
-        overviewPanel.setPadding(Ui.dp(this, 18), Ui.dp(this, 10), Ui.dp(this, 18), Ui.dp(this, 8));
-        TextView overviewHint = Ui.text(this, "AES-256-GCM · stays on this phone", 12, palette.muted);
-        overviewPanel.addView(overviewHint);
-        LinearLayout row1 = Ui.horizontal(this);
-        LinearLayout cardPasswords = statCard("0", "Passwords", v -> selectTab(VaultItem.PASSWORD));
-        countPasswords = (TextView) cardPasswords.getTag();
-        LinearLayout cardNotes = statCard("0", "Notes", v -> selectTab(VaultItem.NOTE));
-        countNotes = (TextView) cardNotes.getTag();
-        row1.addView(cardPasswords, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
-        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
-        gap.leftMargin = Ui.dp(this, 10);
-        row1.addView(cardNotes, gap);
-        overviewPanel.addView(row1, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 14, 0, 0));
-        LinearLayout row2 = Ui.horizontal(this);
-        LinearLayout cardCards = statCard("0", "Cards", v -> selectTab(VaultItem.CARD));
-        countCards = (TextView) cardCards.getTag();
-        LinearLayout cardFiles = statCard("0", "Files", v -> selectTab(TAB_FILES));
-        countFiles = (TextView) cardFiles.getTag();
-        row2.addView(cardCards, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
-        LinearLayout.LayoutParams gap2 = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
-        gap2.leftMargin = Ui.dp(this, 10);
-        row2.addView(cardFiles, gap2);
-        overviewPanel.addView(row2, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 10, 0, 0));
-        Button lock = Ui.secondary(this, "Lock now");
-        lock.setOnClickListener(v -> lockNow());
-        overviewPanel.addView(lock, Ui.margins(this, Ui.MATCH, Ui.dp(this, 48), 0, 22, 0, 0));
+        FrameLayout body = new FrameLayout(this);
+        overviewPanel = buildOverview();
+        body.addView(overviewPanel, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
 
+        LinearLayout listColumn = Ui.vertical(this);
         list = new ListView(this);
         list.setDivider(null);
         list.setDividerHeight(0);
@@ -192,52 +211,230 @@ public final class VaultActivity extends BaseActivity {
         adapter = new ItemAdapter();
         fileAdapter = new FileAdapter();
         list.setAdapter(adapter);
+        listColumn.addView(list, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
+        fileDetail = buildFileDetail();
+        listColumn.addView(fileDetail);
+        body.addView(listColumn, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
 
-        emptyState = Ui.vertical(this);
-        emptyState.setGravity(Gravity.CENTER);
-        emptyState.setPadding(Ui.dp(this, 28), Ui.dp(this, 24), Ui.dp(this, 28), Ui.dp(this, 24));
-        TextView shield = Ui.text(this, "◉", 28, palette.muted);
-        shield.setGravity(Gravity.CENTER);
-        emptyState.addView(shield);
-        emptyTitle = Ui.heading(this, "Nothing here yet");
-        emptyTitle.setGravity(Gravity.CENTER);
-        emptyState.addView(emptyTitle, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 10, 0, 0));
-        emptySubtitle = Ui.text(this, "", 14, palette.muted);
-        emptySubtitle.setGravity(Gravity.CENTER);
-        emptyState.addView(emptySubtitle, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 16));
-        emptyAction = Ui.primary(this, "+ New");
-        emptyAction.setOnClickListener(v -> primaryAction());
-        emptyState.addView(emptyAction, centeredPanelParams(240));
-
-        FrameLayout body = new FrameLayout(this);
-        body.addView(overviewPanel, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
-        body.addView(list, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+        emptyState = buildEmpty();
         body.addView(emptyState, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
-        root.addView(body, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
+        shell.addView(body, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
 
         LinearLayout navWrap = Ui.vertical(this);
         View hairline = new View(this);
         hairline.setBackgroundColor(Ui.withAlpha(palette.line, 180));
-        navWrap.addView(hairline, new LinearLayout.LayoutParams(Ui.MATCH, Math.max(1, Ui.dp(this, 1) / 2 == 0 ? 1 : Ui.dp(this, 1))));
-        LinearLayout nav = buildNav();
-        nav.setBackgroundColor(palette.surface);
-        navWrap.addView(nav);
-        root.addView(navWrap);
+        navWrap.addView(hairline, new LinearLayout.LayoutParams(Ui.MATCH, 1));
+        navWrap.addView(buildNav());
+        shell.addView(navWrap);
+
+        root.addView(shell, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+
+        dim = new View(this);
+        dim.setBackgroundColor(0x99000000);
+        dim.setVisibility(View.GONE);
+        dim.setOnClickListener(v -> closeDrawer());
+        root.addView(dim, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+
+        drawer = buildDrawer();
+        FrameLayout.LayoutParams drawerParams = new FrameLayout.LayoutParams(Ui.dp(this, 300), Ui.MATCH, Gravity.START);
+        root.addView(drawer, drawerParams);
+        drawer.setVisibility(View.GONE);
+
         safeContentView(root);
         selectTab(TAB_OVERVIEW);
     }
 
-    private LinearLayout statCard(String count, String label, View.OnClickListener tap) {
+    private LinearLayout buildOverview() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout page = Ui.vertical(this);
+        page.setPadding(Ui.dp(this, 18), Ui.dp(this, 8), Ui.dp(this, 18), Ui.dp(this, 24));
+        TextView overLabel = Ui.label(this, "OVERVIEW");
+        page.addView(overLabel);
+        greeting = Ui.display(this, greetingText());
+        greeting.setTextSize(28);
+        page.addView(greeting, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 6, 0, 0));
+        greetingSub = Ui.text(this, "Your vault is empty and sealed. Add the first secret.", 14, palette.muted);
+        page.addView(greetingSub, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 6, 0, 0));
+
+        LinearLayout actions = Ui.horizontal(this);
+        Button newLogin = Ui.primary(this, "+ New login");
+        newLogin.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40)));
+        newLogin.setOnClickListener(v -> openEditor(VaultItem.PASSWORD, null));
+        Button generate = Ui.secondary(this, "Generate");
+        generate.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40)));
+        LinearLayout.LayoutParams genParams = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40));
+        genParams.leftMargin = Ui.dp(this, 8);
+        generate.setOnClickListener(v -> startActivity(new Intent(this, GeneratorActivity.class)));
+        actions.addView(newLogin);
+        actions.addView(generate, genParams);
+        page.addView(actions, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 14, 0, 0));
+
+        LinearLayout row1 = Ui.horizontal(this);
+        LinearLayout p = overviewTile("⌁", "0", "Passwords", v -> selectTab(VaultItem.PASSWORD));
+        countPasswords = (TextView) p.getTag();
+        LinearLayout n = overviewTile("✎", "0", "Notes", v -> selectTab(VaultItem.NOTE));
+        countNotes = (TextView) n.getTag();
+        row1.addView(p, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
+        gap.leftMargin = Ui.dp(this, 10);
+        row1.addView(n, gap);
+        page.addView(row1, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 14, 0, 0));
+
+        LinearLayout row2 = Ui.horizontal(this);
+        LinearLayout c = overviewTile("▭", "0", "Cards", v -> selectTab(VaultItem.CARD));
+        countCards = (TextView) c.getTag();
+        LinearLayout f = overviewTile("▤", "0", "Files", v -> selectTab(TAB_FILES));
+        countFiles = (TextView) f.getTag();
+        row2.addView(c, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        LinearLayout.LayoutParams gap2 = new LinearLayout.LayoutParams(0, Ui.WRAP, 1);
+        gap2.leftMargin = Ui.dp(this, 10);
+        row2.addView(f, gap2);
+        page.addView(row2, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 10, 0, 0));
+
+        TextView[] weak = new TextView[2];
+        page.addView(healthCard("Weak passwords", "0", "All logins meet a fair bar.", true, weak));
+        weakCount = weak[0];
+        weakHint = weak[1];
+        TextView[] reused = new TextView[2];
+        page.addView(healthCard("Reused secrets", "0", "No reused passwords.", false, reused));
+        reusedCount = reused[0];
+        reusedHint = reused[1];
+        TextView[] fav = new TextView[2];
+        page.addView(healthCard("Favorites", "0", "Pinned for quicker access.", false, fav));
+        favoriteCount = fav[0];
+        favoriteHint = fav[1];
+
+        page.addView(Ui.heading(this, "Recent"), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 22, 0, 8));
+        recentList = Ui.vertical(this);
+        page.addView(recentList);
+        page.addView(Ui.heading(this, "Favorites"), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 18, 0, 8));
+        favoriteList = Ui.vertical(this);
+        page.addView(favoriteList);
+
+        startCard = Ui.dashedCard(this);
+        startCard.addView(Ui.heading(this, "Start with one secret"));
+        startCard.addView(Ui.text(this, "The vault never sees your PIN. Items are encrypted with AES-256-GCM before they touch disk.", 13, palette.muted), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 6, 0, 12));
+        LinearLayout startRow = Ui.horizontal(this);
+        Button addLogin = Ui.primary(this, "Add a login");
+        addLogin.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40)));
+        addLogin.setOnClickListener(v -> openEditor(VaultItem.PASSWORD, null));
+        Button write = Ui.secondary(this, "Write a note");
+        write.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40)));
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40));
+        wp.leftMargin = Ui.dp(this, 8);
+        write.setOnClickListener(v -> openEditor(VaultItem.NOTE, null));
+        Button openGen = Ui.secondary(this, "Open generator");
+        openGen.setLayoutParams(new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40)));
+        LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 40));
+        gp.leftMargin = Ui.dp(this, 8);
+        openGen.setOnClickListener(v -> startActivity(new Intent(this, GeneratorActivity.class)));
+        startRow.addView(addLogin);
+        startRow.addView(write, wp);
+        startRow.addView(openGen, gp);
+        startCard.addView(startRow);
+        page.addView(startCard, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 16, 0, 0));
+
+        scroll.addView(page);
+        LinearLayout wrap = Ui.vertical(this);
+        wrap.addView(scroll, new LinearLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+        return wrap;
+    }
+
+    private LinearLayout overviewTile(String glyph, String count, String label, View.OnClickListener tap) {
         LinearLayout card = Ui.card(this);
-        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16));
+        card.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
         card.setOnClickListener(tap);
-        TextView value = Ui.text(this, count, 28, palette.text);
+        LinearLayout top = Ui.horizontal(this);
+        top.addView(Ui.iconBubble(this, glyph));
+        TextView value = Ui.text(this, count, 22, palette.text);
         value.setTypeface(Ui.serif());
+        value.setGravity(Gravity.END);
+        top.addView(value, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        card.addView(top);
         TextView name = Ui.text(this, label, 13, palette.muted);
-        card.addView(value);
-        card.addView(name, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 6, 0, 0));
+        card.addView(name, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 10, 0, 0));
         card.setTag(value);
         return card;
+    }
+
+    private LinearLayout healthCard(String title, String count, String hint, boolean first, TextView[] slots) {
+        LinearLayout card = Ui.card(this);
+        LinearLayout.LayoutParams params = Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, first ? 14 : 10, 0, 0);
+        card.setLayoutParams(params);
+        LinearLayout titleRow = Ui.horizontal(this);
+        titleRow.addView(Ui.text(this, "🛡  " + title, 13, palette.muted));
+        card.addView(titleRow);
+        TextView value = Ui.text(this, count, 22, palette.text);
+        value.setTypeface(Ui.serif());
+        card.addView(value, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 6, 0, 0));
+        TextView sub = Ui.text(this, hint, 12, palette.muted);
+        card.addView(sub, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
+        if (slots != null && slots.length >= 2) {
+            slots[0] = value;
+            slots[1] = sub;
+        }
+        return card;
+    }
+
+    private LinearLayout buildEmpty() {
+        LinearLayout empty = Ui.vertical(this);
+        empty.setGravity(Gravity.CENTER);
+        empty.setPadding(Ui.dp(this, 28), Ui.dp(this, 24), Ui.dp(this, 28), Ui.dp(this, 24));
+        TextView shield = Ui.text(this, "🛡", 22, palette.muted);
+        shield.setGravity(Gravity.CENTER);
+        int size = Ui.dp(this, 52);
+        shield.setLayoutParams(new LinearLayout.LayoutParams(size, size));
+        shield.setBackground(Ui.roundRect(this, palette.raised, 99, 1, Ui.withAlpha(palette.line, 140)));
+        empty.addView(shield);
+        emptyTitle = Ui.heading(this, "Nothing here yet");
+        emptyTitle.setGravity(Gravity.CENTER);
+        empty.addView(emptyTitle, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 14, 0, 0));
+        emptySubtitle = Ui.text(this, "", 14, palette.muted);
+        emptySubtitle.setGravity(Gravity.CENTER);
+        empty.addView(emptySubtitle, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 16));
+        emptyAction = Ui.primary(this, "+ New");
+        emptyAction.setOnClickListener(v -> primaryAction());
+        empty.addView(emptyAction, centeredPanelParams(220));
+        return empty;
+    }
+
+    private LinearLayout buildFileDetail() {
+        LinearLayout panel = Ui.vertical(this);
+        panel.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
+        panel.setBackgroundColor(palette.surface);
+        LinearLayout titleRow = Ui.horizontal(this);
+        fileDetailTitle = Ui.heading(this, "");
+        titleRow.addView(fileDetailTitle, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        Button edit = Ui.pill(this, "Edit", false);
+        edit.setOnClickListener(v -> {
+            if (selectedFile == null) return;
+            Intent intent = new Intent(this, FileEditorActivity.class);
+            intent.putExtra("media_id", selectedFile.id);
+            startActivityForResult(intent, FILE_EDITOR_REQUEST);
+        });
+        titleRow.addView(edit);
+        Button more = Ui.pill(this, "···", false);
+        more.setOnClickListener(v -> showFileMenu(more));
+        LinearLayout.LayoutParams moreParams = new LinearLayout.LayoutParams(Ui.WRAP, Ui.dp(this, 36));
+        moreParams.leftMargin = Ui.dp(this, 6);
+        titleRow.addView(more, moreParams);
+        panel.addView(titleRow);
+        fileDetailMeta = Ui.text(this, "", 13, palette.muted);
+        fileDetailMeta.setLineSpacing(0, 1.3f);
+        panel.addView(fileDetailMeta, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 12));
+        LinearLayout actions = Ui.horizontal(this);
+        Button download = Ui.secondary(this, "↓ Download");
+        download.setOnClickListener(v -> exportSelected(false));
+        Button enc = Ui.secondary(this, "Export .enc");
+        enc.setOnClickListener(v -> exportSelected(true));
+        actions.addView(download, new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1));
+        LinearLayout.LayoutParams e = new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1);
+        e.leftMargin = Ui.dp(this, 8);
+        actions.addView(enc, e);
+        panel.addView(actions);
+        panel.setVisibility(View.GONE);
+        return panel;
     }
 
     private LinearLayout buildNav() {
@@ -265,6 +462,69 @@ public final class VaultActivity extends BaseActivity {
             navItems[i] = item;
         }
         return nav;
+    }
+
+    private LinearLayout buildDrawer() {
+        LinearLayout panel = Ui.vertical(this);
+        panel.setBackgroundColor(palette.surface);
+        panel.setPadding(Ui.dp(this, 16), Ui.dp(this, 18), Ui.dp(this, 16), Ui.dp(this, 12));
+        LinearLayout head = Ui.horizontal(this);
+        head.addView(Ui.heading(this, "Vault"), new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        Button close = Ui.iconButton(this, "×", "Close");
+        close.setOnClickListener(v -> closeDrawer());
+        head.addView(close);
+        panel.addView(head);
+        panel.addView(drawerRow("▦", "Overview", null, v -> { closeDrawer(); selectTab(TAB_OVERVIEW); }));
+        drawerCountPasswords = addCountedRow(panel, "⌁", "Passwords", VaultItem.PASSWORD);
+        drawerCountNotes = addCountedRow(panel, "✎", "Notes", VaultItem.NOTE);
+        drawerCountCards = addCountedRow(panel, "▭", "Cards", VaultItem.CARD);
+        drawerCountFiles = addCountedRow(panel, "▤", "Files", TAB_FILES);
+        panel.addView(drawerRow("⟳", "Generator", null, v -> {
+            closeDrawer();
+            startActivity(new Intent(this, GeneratorActivity.class));
+        }));
+        panel.addView(drawerRow("⚙", "Settings", null, v -> {
+            closeDrawer();
+            startActivity(new Intent(this, SettingsActivity.class));
+        }));
+        View spacer = new View(this);
+        panel.addView(spacer, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
+        LinearLayout bottom = Ui.horizontal(this);
+        Button lock = Ui.secondary(this, "Lock");
+        lock.setOnClickListener(v -> { closeDrawer(); lockNow(); });
+        bottom.addView(lock, new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1));
+        Button theme = Ui.iconButton(this, "☀", "Theme");
+        theme.setOnClickListener(v -> {
+            VaultPrefs.setLight(this, !VaultPrefs.isLight(this));
+            recreate();
+        });
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
+        tp.leftMargin = Ui.dp(this, 8);
+        bottom.addView(theme, tp);
+        panel.addView(bottom);
+        return panel;
+    }
+
+    private TextView addCountedRow(LinearLayout panel, String glyph, String label, String tab) {
+        LinearLayout row = drawerRow(glyph, label, "0", v -> { closeDrawer(); selectTab(tab); });
+        TextView count = (TextView) row.getTag();
+        panel.addView(row);
+        return count;
+    }
+
+    private LinearLayout drawerRow(String glyph, String label, String count, View.OnClickListener tap) {
+        LinearLayout row = Ui.horizontal(this);
+        row.setPadding(Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12));
+        row.setOnClickListener(tap);
+        row.addView(Ui.text(this, glyph, 16, palette.text));
+        TextView name = Ui.text(this, "  " + label, 15, palette.text);
+        row.addView(name, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        if (count != null) {
+            TextView value = Ui.text(this, count, 13, palette.muted);
+            row.addView(value);
+            row.setTag(value);
+        }
+        return row;
     }
 
     private View buildSearchBox() {
@@ -295,9 +555,22 @@ public final class VaultActivity extends BaseActivity {
         return box;
     }
 
+    private void openDrawer() {
+        drawerOpen = true;
+        drawer.setVisibility(View.VISIBLE);
+        dim.setVisibility(View.VISIBLE);
+    }
+
+    private void closeDrawer() {
+        drawerOpen = false;
+        drawer.setVisibility(View.GONE);
+        dim.setVisibility(View.GONE);
+    }
+
     private void selectTab(String tab) {
         selectedTab = tab;
         selectedFilter = FILTER_ALL;
+        selectedFile = null;
         suppressSearch = true;
         if (search != null) search.setText("");
         suppressSearch = false;
@@ -305,9 +578,9 @@ public final class VaultActivity extends BaseActivity {
         boolean files = TAB_FILES.equals(tab);
         overviewPanel.setVisibility(overview ? View.VISIBLE : View.GONE);
         searchBox.setVisibility(overview ? View.GONE : View.VISIBLE);
-        chipsRow.getParent();
         ((View) chipsRow.getParent()).setVisibility(overview ? View.GONE : View.VISIBLE);
         addButton.setVisibility(overview ? View.GONE : View.VISIBLE);
+        headingRowVisible(!overview);
         if (VaultItem.PASSWORD.equals(tab)) {
             pageTitle.setText("Passwords");
             pageSubtitle.setText("Logins encrypted on this device.");
@@ -328,14 +601,13 @@ public final class VaultActivity extends BaseActivity {
             emptyAction.setText("+ New card");
         } else if (files) {
             pageTitle.setText("Files");
-            pageSubtitle.setText("Upload, encrypt, open inside the vault.");
+            pageSubtitle.setText("Upload, encrypt, download — or export a .enc backup.");
             addButton.setText("+ Encrypt file");
-            emptySubtitle.setText("Drop a file into the vault. It is encrypted before it is stored.");
+            emptySubtitle.setText("Drop a document into the vault. It is encrypted before it is stored.");
             emptyAction.setText("+ Encrypt file");
         } else {
             pageTitle.setText("Vault");
-            pageSubtitle.setText("Your vault, only on this phone.");
-            emptySubtitle.setText("");
+            pageSubtitle.setText("");
         }
         rebuildChips();
         for (int i = 0; i < navIds.length; i++) {
@@ -351,17 +623,18 @@ public final class VaultActivity extends BaseActivity {
         if (active) loadCurrent();
     }
 
+    private void headingRowVisible(boolean show) {
+        View parent = (View) pageTitle.getParent().getParent();
+        parent.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
     private void rebuildChips() {
         chipsRow.removeAllViews();
-        String[] filters;
-        if (TAB_FILES.equals(selectedTab)) {
-            filters = new String[]{FILTER_ALL, "Photo", "Video", "Audio", "Docs"};
-        } else {
-            filters = new String[]{FILTER_FAVORITES, FILTER_ALL, "Personal", "Work", "Finance", "Shopping", "Social", "Travel", "Other"};
-        }
+        String[] filters = new String[]{FILTER_FAVORITES, FILTER_ALL, "Personal", "Work", "Finance", "Shopping", "Social", "Travel", "Other"};
         for (int i = 0; i < filters.length; i++) {
             final String filter = filters[i];
-            Button chip = Ui.pill(this, filter, filter.equals(selectedFilter));
+            String label = FILTER_FAVORITES.equals(filter) ? "★ Favorites" : filter;
+            Button chip = Ui.pill(this, label, filter.equals(selectedFilter));
             chip.setOnClickListener(v -> {
                 selectedFilter = filter;
                 rebuildChips();
@@ -373,30 +646,60 @@ public final class VaultActivity extends BaseActivity {
         }
     }
 
+    private void showFileMenu(View anchor) {
+        if (selectedFile == null) return;
+        android.widget.PopupMenu menu = new android.widget.PopupMenu(this, anchor);
+        menu.getMenu().add(0, 1, 0, "Open");
+        menu.getMenu().add(0, 2, 0, selectedFile.favorite ? "Unstar" : "Star");
+        menu.getMenu().add(0, 3, 0, "Delete");
+        menu.setOnMenuItemClickListener(item -> {
+            if (selectedFile == null) return true;
+            if (item.getItemId() == 1) {
+                openFile(selectedFile);
+                return true;
+            }
+            if (item.getItemId() == 2) {
+                MediaItemRecord meta = selectedFile.copy();
+                meta.favorite = !meta.favorite;
+                VaultDb.get(this).updateMediaMetaAsync(meta, (ok, error) -> {
+                    if (error != null) { error(error); return; }
+                    selectedFile.favorite = meta.favorite;
+                    renderFileDetail();
+                    loadCurrent();
+                });
+                return true;
+            }
+            Intent intent = new Intent(this, MediaDeleteConfirmActivity.class);
+            intent.putExtra("media_id", selectedFile.id);
+            startActivityForResult(intent, DELETE_REQUEST);
+            return true;
+        });
+        menu.show();
+    }
+
     private void primaryAction() {
         if (TAB_FILES.equals(selectedTab)) {
-            if (importing) {
-                message("Finish the current import first");
-                return;
-            }
-            picker.launch(new String[]{"*/*"});
+            startActivityForResult(new Intent(this, FileEditorActivity.class), FILE_EDITOR_REQUEST);
             return;
         }
         if (TAB_OVERVIEW.equals(selectedTab)) {
-            startActivity(new Intent(this, SettingsActivity.class));
+            openEditor(VaultItem.PASSWORD, null);
             return;
         }
-        openEditor(null);
+        openEditor(selectedTab, null);
     }
 
     private void loadCurrent() {
         if (!active || !VaultSession.isUnlocked()) return;
-        loadCounts();
+        loadOverview();
         if (TAB_OVERVIEW.equals(selectedTab)) {
             list.setVisibility(View.GONE);
             emptyState.setVisibility(View.GONE);
+            fileDetail.setVisibility(View.GONE);
+            ((View) list.getParent()).setVisibility(View.GONE);
             return;
         }
+        ((View) list.getParent()).setVisibility(View.VISIBLE);
         if (TAB_FILES.equals(selectedTab)) {
             list.setAdapter(fileAdapter);
             loadFiles();
@@ -406,19 +709,102 @@ public final class VaultActivity extends BaseActivity {
         loadItems();
     }
 
-    private void loadCounts() {
+    private void loadOverview() {
         if (countTask != null) countTask.cancel();
-        countTask = VaultDb.get(this).countsAsync((counts, error) -> {
-            if (!active || counts == null) return;
+        countTask = VaultDb.get(this).overviewAsync((data, error) -> {
+            if (!active || data == null) return;
             if (error != null) {
                 if (VaultSession.isUnlocked()) error(error);
                 return;
             }
-            if (countPasswords != null) countPasswords.setText(String.valueOf(counts.passwords));
-            if (countNotes != null) countNotes.setText(String.valueOf(counts.notes));
-            if (countCards != null) countCards.setText(String.valueOf(counts.cards));
-            if (countFiles != null) countFiles.setText(String.valueOf(counts.media + counts.documents));
+            int files = data.counts.media + data.counts.documents;
+            setCount(countPasswords, data.counts.passwords);
+            setCount(countNotes, data.counts.notes);
+            setCount(countCards, data.counts.cards);
+            setCount(countFiles, files);
+            setCount(drawerCountPasswords, data.counts.passwords);
+            setCount(drawerCountNotes, data.counts.notes);
+            setCount(drawerCountCards, data.counts.cards);
+            setCount(drawerCountFiles, files);
+            setCount(weakCount, data.weak);
+            setCount(reusedCount, data.reused);
+            setCount(favoriteCount, data.favorites);
+            if (weakHint != null) weakHint.setText(data.weak == 0 ? "All logins meet a fair bar." : "Lengthen or mix these logins.");
+            if (reusedHint != null) reusedHint.setText(data.reused == 0 ? "No reused passwords." : "Some logins share a secret.");
+            if (favoriteHint != null) favoriteHint.setText(data.favorites == 0 ? "Pinned for quicker access." : "Starred items in this vault.");
+            int total = data.counts.passwords + data.counts.notes + data.counts.cards + files;
+            greeting.setText(greetingText());
+            greetingSub.setText(total == 0
+                    ? "Your vault is empty and sealed. Add the first secret."
+                    : "Sealed on this phone. AES-256-GCM.");
+            startCard.setVisibility(total == 0 ? View.VISIBLE : View.GONE);
+            fillRecent(data);
+            fillFavorites(data);
         });
+    }
+
+    private void fillRecent(VaultDb.Overview data) {
+        recentList.removeAllViews();
+        ArrayList<Recent> merged = new ArrayList<>();
+        for (VaultItem item : data.recentItems) merged.add(Recent.from(item));
+        for (MediaItemRecord file : data.files) merged.add(Recent.from(file));
+        merged.sort((a, b) -> Long.compare(b.updatedAt, a.updatedAt));
+        int shown = 0;
+        for (Recent item : merged) {
+            if (shown >= 5) break;
+            recentList.addView(recentRow(item));
+            shown++;
+        }
+        if (shown == 0) recentList.addView(placeholder("Nothing stored yet."));
+    }
+
+    private void fillFavorites(VaultDb.Overview data) {
+        favoriteList.removeAllViews();
+        int shown = 0;
+        for (VaultItem item : data.favoriteItems) {
+            favoriteList.addView(recentRow(Recent.from(item)));
+            shown++;
+        }
+        for (MediaItemRecord file : data.files) {
+            if (!file.favorite) continue;
+            favoriteList.addView(recentRow(Recent.from(file)));
+            shown++;
+        }
+        if (shown == 0) favoriteList.addView(placeholder("Star an item to pin it here."));
+    }
+
+    private LinearLayout placeholder(String text) {
+        LinearLayout card = Ui.card(this);
+        TextView view = Ui.text(this, text, 14, palette.muted);
+        view.setGravity(Gravity.CENTER);
+        card.addView(view);
+        return card;
+    }
+
+    private LinearLayout recentRow(Recent item) {
+        LinearLayout row = Ui.horizontal(this);
+        row.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10));
+        LinearLayout labels = Ui.vertical(this);
+        TextView title = Ui.text(this, item.title, 15, palette.text);
+        title.setTypeface(Ui.serif());
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        labels.addView(title);
+        labels.addView(Ui.text(this, item.subtitle, 12, palette.muted), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 3, 0, 0));
+        row.addView(labels, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
+        row.addView(Ui.pill(this, item.category, false));
+        row.setOnClickListener(v -> {
+            if ("file".equals(item.kind)) {
+                selectTab(TAB_FILES);
+            } else {
+                openEditor(item.kind, item.id);
+            }
+        });
+        return row;
+    }
+
+    private void setCount(TextView view, int value) {
+        if (view != null) view.setText(String.valueOf(value));
     }
 
     private void loadItems() {
@@ -434,32 +820,29 @@ public final class VaultActivity extends BaseActivity {
             ArrayList<VaultItem> shown = new ArrayList<>();
             if (items != null) {
                 for (VaultItem item : items) {
-                    if (matchesFilter(item)) shown.add(item);
+                    if (matchesFilter(item.favorite, item.category)) shown.add(item);
                     else item.clearSensitive();
                 }
             }
             adapter.replace(shown);
             boolean empty = shown.isEmpty();
             emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+            ((View) list.getParent()).setVisibility(empty ? View.GONE : View.VISIBLE);
             list.setVisibility(empty ? View.GONE : View.VISIBLE);
+            fileDetail.setVisibility(View.GONE);
         });
     }
 
-    private boolean matchesFilter(VaultItem item) {
+    private boolean matchesFilter(boolean favorite, String category) {
         if (FILTER_ALL.equals(selectedFilter)) return true;
-        if (FILTER_FAVORITES.equals(selectedFilter)) return item.favorite;
-        return selectedFilter.equalsIgnoreCase(item.category);
+        if (FILTER_FAVORITES.equals(selectedFilter)) return favorite;
+        return selectedFilter.equalsIgnoreCase(category);
     }
 
     private void loadFiles() {
         if (listTask != null) listTask.cancel();
         String query = search == null ? "" : search.getText().toString();
-        String kind = "files";
-        if ("Photo".equals(selectedFilter)) kind = "image";
-        else if ("Video".equals(selectedFilter)) kind = "video";
-        else if ("Audio".equals(selectedFilter)) kind = "audio";
-        else if ("Docs".equals(selectedFilter)) kind = "document";
-        listTask = VaultDb.get(this).listMediaAsync(query, kind, 400, (items, error) -> {
+        listTask = VaultDb.get(this).listMediaAsync(query, "files", 400, (items, error) -> {
             if (!active) {
                 clearMedia(items);
                 return;
@@ -469,17 +852,60 @@ public final class VaultActivity extends BaseActivity {
                 clearMedia(items);
                 return;
             }
-            fileAdapter.replace(items == null ? new ArrayList<>() : items);
-            boolean empty = fileAdapter.getCount() == 0;
+            ArrayList<MediaItemRecord> shown = new ArrayList<>();
+            if (items != null) {
+                for (MediaItemRecord item : items) {
+                    if (matchesFilter(item.favorite, item.category)
+                            && (query.isEmpty()
+                            || item.displayTitle().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
+                            || item.originalName.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))) {
+                        shown.add(item);
+                    } else item.clearSensitive();
+                }
+            }
+            fileAdapter.replace(shown);
+            boolean empty = shown.isEmpty();
             emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+            ((View) list.getParent()).setVisibility(empty ? View.GONE : View.VISIBLE);
             list.setVisibility(empty ? View.GONE : View.VISIBLE);
+            renderFileDetail();
         });
     }
 
-    private void openEditor(VaultItem item) {
+    private void renderFileDetail() {
+        if (selectedFile == null || !TAB_FILES.equals(selectedTab)) {
+            fileDetail.setVisibility(View.GONE);
+            return;
+        }
+        fileDetail.setVisibility(View.VISIBLE);
+        fileDetailTitle.setText(selectedFile.displayTitle());
+        fileDetailMeta.setText(VaultItem.normalizeCategory(selectedFile.category)
+                + "\n\nFilename\n" + selectedFile.originalName
+                + "\n\nSize\n" + humanSize(selectedFile.size));
+    }
+
+    private void exportSelected(boolean ciphertext) {
+        if (selectedFile == null || actionTask != null) return;
+        message(ciphertext ? "Exporting .enc…" : "Downloading…");
+        if (ciphertext) {
+            actionTask = MediaRepository.exportCiphertextAsync(this, selectedFile.id, (uri, error) -> {
+                actionTask = null;
+                if (error != null) error(error);
+                else message("Exported .enc to Downloads/Govind Personal Vault");
+            });
+        } else {
+            actionTask = MediaRepository.exportAsync(this, selectedFile.id, (uri, error) -> {
+                actionTask = null;
+                if (error != null) error(error);
+                else message("Downloaded to Govind Personal Vault");
+            });
+        }
+    }
+
+    private void openEditor(String kind, String id) {
         Intent intent = new Intent(this, EntryEditorActivity.class);
-        intent.putExtra("kind", selectedTab);
-        if (item != null) intent.putExtra("item_id", item.id);
+        intent.putExtra("kind", kind);
+        if (id != null) intent.putExtra("item_id", id);
         startActivity(intent);
     }
 
@@ -510,84 +936,31 @@ public final class VaultActivity extends BaseActivity {
         startActivityForResult(intent, DELETE_REQUEST);
     }
 
-    private void onFilesSelected(List<Uri> uris) {
-        if (uris == null || uris.isEmpty()) return;
-        pendingImportUris.clear();
-        for (Uri uri : uris) {
-            if (uri == null) continue;
-            pendingImportUris.add(uri);
-            try {
-                getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (SecurityException | UnsupportedOperationException ignored) { }
-        }
-        if (VaultSession.isUnlocked()) beginImport();
-        else message("Unlock the vault to finish importing");
-    }
-
-    private void beginImport() {
-        if (importing || pendingImportUris.isEmpty() || !VaultSession.isUnlocked()) return;
-        importing = true;
-        ArrayList<Uri> selected = new ArrayList<>(pendingImportUris);
-        ArrayList<Uri> media = new ArrayList<>();
-        ArrayList<Uri> documents = new ArrayList<>();
-        for (Uri uri : selected) {
-            String mime = getContentResolver().getType(uri);
-            if (mime != null && (mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/"))) {
-                media.add(uri);
-            } else {
-                documents.add(uri);
-            }
-        }
-        message("Encrypting " + selected.size() + " file(s)…");
-        if (!media.isEmpty()) {
-            importTask = MediaRepository.importAsync(this, media, (c, t, n, b) -> { }, (summary, error) -> {
-                if (!documents.isEmpty()) {
-                    importTask = MediaRepository.importDocumentsAsync(this, documents, (c, t, n, b) -> { },
-                            (docSummary, docError) -> finishImport(selected, merge(summary, docSummary), error != null ? error : docError));
-                } else {
-                    finishImport(selected, summary, error);
-                }
-            });
-            return;
-        }
-        importTask = MediaRepository.importDocumentsAsync(this, documents, (c, t, n, b) -> { },
-                (summary, error) -> finishImport(selected, summary, error));
-    }
-
-    private static MediaRepository.ImportSummary merge(MediaRepository.ImportSummary a, MediaRepository.ImportSummary b) {
-        int imported = (a == null ? 0 : a.imported) + (b == null ? 0 : b.imported);
-        int failed = (a == null ? 0 : a.failed) + (b == null ? 0 : b.failed);
-        return new MediaRepository.ImportSummary(imported, failed, new ArrayList<>());
-    }
-
-    private void finishImport(List<Uri> selected, MediaRepository.ImportSummary summary, Exception error) {
-        importing = false;
-        releasePermissions(selected);
-        pendingImportUris.clear();
-        if (!active) return;
-        if (error != null) error(error);
-        else if (summary != null && summary.failed == 0) message("Added to vault");
-        else if (summary != null) message(summary.imported + " imported • " + summary.failed + " failed");
-        loadCurrent();
-    }
-
-    private void releasePermissions(List<Uri> uris) {
-        for (Uri uri : uris) {
-            try {
-                getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (SecurityException | UnsupportedOperationException ignored) { }
-        }
-    }
-
     private static void clearMedia(List<MediaItemRecord> items) {
         if (items == null) return;
         for (MediaItemRecord item : items) if (item != null) item.clearSensitive();
     }
 
+    private static String greetingText() {
+        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        if (hour < 12) return "Good morning";
+        if (hour < 17) return "Good afternoon";
+        return "Good evening";
+    }
+
+    private static String humanSize(long bytes) {
+        if (bytes < 1024L) return bytes + " B";
+        double value = bytes / 1024.0;
+        if (value < 1024.0) return String.format(Locale.US, "%.1f KB", value);
+        value /= 1024.0;
+        if (value < 1024.0) return String.format(Locale.US, "%.1f MB", value);
+        return String.format(Locale.US, "%.2f GB", value / 1024.0);
+    }
+
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
-        if (request == DELETE_REQUEST && result == RESULT_OK) {
-            message("Item deleted");
+        if ((request == DELETE_REQUEST || request == FILE_EDITOR_REQUEST) && result == RESULT_OK) {
+            if (request == DELETE_REQUEST) message("Item deleted");
             loadCurrent();
         }
     }
@@ -598,6 +971,7 @@ public final class VaultActivity extends BaseActivity {
         if (adapter != null) adapter.clear();
         if (fileAdapter != null) fileAdapter.clear();
         if (emptyState != null) emptyState.setVisibility(View.GONE);
+        selectedFile = null;
     }
 
     @Override protected void onDestroy() {
@@ -605,6 +979,30 @@ public final class VaultActivity extends BaseActivity {
         if (listTask != null) listTask.cancel();
         if (countTask != null) countTask.cancel();
         super.onDestroy();
+    }
+
+    private static final class Recent {
+        final String id;
+        final String kind;
+        final String title;
+        final String subtitle;
+        final String category;
+        final long updatedAt;
+        static Recent from(VaultItem item) {
+            String sub = VaultItem.PASSWORD.equals(item.kind) ? "Login" : VaultItem.CARD.equals(item.kind) ? "Card" : "Note";
+            return new Recent(item.id, item.kind, item.title, sub, item.category, item.updatedAt);
+        }
+        static Recent from(MediaItemRecord item) {
+            return new Recent(item.id, "file", item.displayTitle(), item.originalName, item.category, item.updatedAt);
+        }
+        Recent(String id, String kind, String title, String subtitle, String category, long updatedAt) {
+            this.id = id;
+            this.kind = kind;
+            this.title = title;
+            this.subtitle = subtitle;
+            this.category = category;
+            this.updatedAt = updatedAt;
+        }
     }
 
     private final class ItemAdapter extends BaseAdapter {
@@ -646,7 +1044,7 @@ public final class VaultActivity extends BaseActivity {
             sub.setMaxLines(1);
             sub.setEllipsize(TextUtils.TruncateAt.END);
             row.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
-            row.setOnClickListener(v -> openEditor(item));
+            row.setOnClickListener(v -> openEditor(item.kind, item.id));
             row.setOnLongClickListener(v -> { askDelete(item); return true; });
             return row;
         }
@@ -672,19 +1070,22 @@ public final class VaultActivity extends BaseActivity {
             LinearLayout row = Ui.vertical(VaultActivity.this);
             row.setPadding(Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14), Ui.dp(VaultActivity.this, 16), Ui.dp(VaultActivity.this, 14));
             LinearLayout top = Ui.horizontal(VaultActivity.this);
-            TextView title = Ui.text(VaultActivity.this, item.originalName, 16, palette.text);
+            TextView title = Ui.text(VaultActivity.this, item.displayTitle(), 16, palette.text);
             title.setTypeface(Ui.serif());
             title.setMaxLines(1);
             title.setEllipsize(TextUtils.TruncateAt.END);
             top.addView(title, new LinearLayout.LayoutParams(0, Ui.WRAP, 1));
-            TextView badge = Ui.pill(VaultActivity.this, item.kindLabel(), false);
+            TextView badge = Ui.pill(VaultActivity.this, item.favorite ? "★ " + item.category : item.category, false);
             badge.setTextSize(11);
             top.addView(badge);
             row.addView(top);
-            TextView sub = Ui.text(VaultActivity.this, item.mimeType, 13, palette.muted);
+            TextView sub = Ui.text(VaultActivity.this, item.originalName, 13, palette.muted);
             sub.setMaxLines(1);
             row.addView(sub, Ui.margins(VaultActivity.this, Ui.MATCH, Ui.WRAP, 0, 4, 0, 0));
-            row.setOnClickListener(v -> openFile(item));
+            row.setOnClickListener(v -> {
+                selectedFile = item.copy();
+                renderFileDetail();
+            });
             return row;
         }
     }

@@ -16,6 +16,7 @@ import com.govind.personalvault.security.VaultSession;
 
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -29,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class VaultDb extends SQLiteOpenHelper {
     private static final String TAG = "VaultDb";
     private static final String DB_NAME = "govind_personal_vault.db";
-    private static final int DB_VERSION = 3;
+    private static final int DB_VERSION = 4;
     private static volatile VaultDb instance;
 
     private final Context context;
@@ -119,6 +120,7 @@ public final class VaultDb extends SQLiteOpenHelper {
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) createMediaTable(db);
         if (oldVersion < 3) upgradeVaultItemsV3(db);
+        if (oldVersion < 4) upgradeMediaItemsV4(db);
     }
 
     private static void createVaultTable(SQLiteDatabase db) {
@@ -169,9 +171,55 @@ public final class VaultDb extends SQLiteOpenHelper {
                 "mime_type_blob TEXT NOT NULL," +
                 "size_blob TEXT NOT NULL," +
                 "thumbnail_blob TEXT NOT NULL," +
+                "title_blob TEXT NOT NULL DEFAULT ''," +
+                "category_blob TEXT NOT NULL DEFAULT ''," +
+                "favorite_blob TEXT NOT NULL DEFAULT ''," +
+                "tags_blob TEXT NOT NULL DEFAULT ''," +
+                "notes_blob TEXT NOT NULL DEFAULT ''," +
                 "created_at INTEGER NOT NULL," +
                 "updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX IF NOT EXISTS media_updated_idx ON media_items(updated_at DESC)");
+    }
+
+    private static void upgradeMediaItemsV4(SQLiteDatabase db) {
+        db.execSQL("ALTER TABLE media_items ADD COLUMN title_blob TEXT NOT NULL DEFAULT ''");
+        db.execSQL("ALTER TABLE media_items ADD COLUMN category_blob TEXT NOT NULL DEFAULT ''");
+        db.execSQL("ALTER TABLE media_items ADD COLUMN favorite_blob TEXT NOT NULL DEFAULT ''");
+        db.execSQL("ALTER TABLE media_items ADD COLUMN tags_blob TEXT NOT NULL DEFAULT ''");
+        db.execSQL("ALTER TABLE media_items ADD COLUMN notes_blob TEXT NOT NULL DEFAULT ''");
+    }
+
+    public static final class Overview {
+        public Counts counts;
+        public int weak;
+        public int reused;
+        public int favorites;
+        public final ArrayList<VaultItem> recentItems = new ArrayList<>();
+        public final ArrayList<VaultItem> favoriteItems = new ArrayList<>();
+        public final ArrayList<MediaItemRecord> files = new ArrayList<>();
+    }
+
+    public Task overviewAsync(Callback<Overview> callback) {
+        return submit(this::overviewBlocking, callback);
+    }
+
+    public Task updateMediaMetaAsync(MediaItemRecord source, Callback<Boolean> callback) {
+        MediaItemRecord snapshot = source == null ? new MediaItemRecord() : source.copy();
+        return submit(() -> {
+            updateMediaMetaBlocking(snapshot);
+            return Boolean.TRUE;
+        }, callback);
+    }
+
+    /** WAL checkpoint. Ciphertext export only — never call on the main thread. */
+    public void walCheckpoint() {
+        android.database.Cursor cursor = getWritableDatabase().rawQuery("PRAGMA wal_checkpoint(FULL)", null);
+        try { cursor.moveToFirst(); } finally { cursor.close(); }
+    }
+
+    /** Media worker only. */
+    public void updateMediaMetaNow(MediaItemRecord source) throws Exception {
+        updateMediaMetaBlocking(source == null ? new MediaItemRecord() : source.copy());
     }
 
     public Task saveAsync(VaultItem source, Callback<String> callback) {
@@ -274,6 +322,11 @@ public final class VaultDb extends SQLiteOpenHelper {
             values.put("mime_type_blob", security.encryptText(mediaPurpose(id, "mime_type"), item.mimeType));
             values.put("size_blob", security.encryptText(mediaPurpose(id, "size"), Long.toString(item.size)));
             values.put("thumbnail_blob", security.encryptBytes(mediaPurpose(id, "thumbnail"), item.thumbnail));
+            values.put("title_blob", security.encryptText(mediaPurpose(id, "title"), item.title == null ? "" : item.title));
+            values.put("category_blob", security.encryptText(mediaPurpose(id, "category"), VaultItem.normalizeCategory(item.category)));
+            values.put("favorite_blob", security.encryptText(mediaPurpose(id, "favorite"), item.favorite ? "1" : "0"));
+            values.put("tags_blob", security.encryptText(mediaPurpose(id, "tags"), item.tags == null ? "" : item.tags));
+            values.put("notes_blob", security.encryptText(mediaPurpose(id, "notes"), item.notes == null ? "" : item.notes));
             values.put("created_at", created);
             values.put("updated_at", item.updatedAt > 0L ? item.updatedAt : now);
             SQLiteDatabase db = getWritableDatabase();
@@ -474,7 +527,113 @@ public final class VaultDb extends SQLiteOpenHelper {
                 cursor.getString(cursor.getColumnIndexOrThrow("thumbnail_blob")));
         item.createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at"));
         item.updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"));
+        item.title = optionalMediaText(security, id, "title", cursor, "title_blob", "");
+        if (item.title.trim().isEmpty()) item.title = item.originalName;
+        item.category = VaultItem.normalizeCategory(optionalMediaText(security, id, "category", cursor, "category_blob", "Personal"));
+        item.favorite = "1".equals(optionalMediaText(security, id, "favorite", cursor, "favorite_blob", "0"));
+        item.tags = optionalMediaText(security, id, "tags", cursor, "tags_blob", "");
+        item.notes = optionalMediaText(security, id, "notes", cursor, "notes_blob", "");
         return item;
+    }
+
+    private void updateMediaMetaBlocking(MediaItemRecord item) throws Exception {
+        if (!VaultSession.isUnlocked()) throw new GeneralSecurityException("Vault is locked");
+        String id = safeId(item.id);
+        SecurityManager security = SecurityManager.get(context);
+        ContentValues values = new ContentValues();
+        if (item.originalName != null && !item.originalName.trim().isEmpty()) {
+            values.put("original_name_blob", security.encryptText(mediaPurpose(id, "original_name"), item.originalName));
+        }
+        values.put("title_blob", security.encryptText(mediaPurpose(id, "title"), item.title == null ? "" : item.title));
+        values.put("category_blob", security.encryptText(mediaPurpose(id, "category"), VaultItem.normalizeCategory(item.category)));
+        values.put("favorite_blob", security.encryptText(mediaPurpose(id, "favorite"), item.favorite ? "1" : "0"));
+        values.put("tags_blob", security.encryptText(mediaPurpose(id, "tags"), item.tags == null ? "" : item.tags));
+        values.put("notes_blob", security.encryptText(mediaPurpose(id, "notes"), item.notes == null ? "" : item.notes));
+        values.put("updated_at", System.currentTimeMillis());
+        int updated = getWritableDatabase().update("media_items", values, "_id=?", new String[]{id});
+        if (updated != 1) throw new GeneralSecurityException("File metadata could not be updated");
+    }
+
+    private Overview overviewBlocking() throws Exception {
+        Overview overview = new Overview();
+        int passwords = 0, notes = 0, cards = 0;
+        int weak = 0, reused = 0, favorites = 0;
+        HashMap<String, Integer> secretCounts = new HashMap<>();
+        Cursor cursor = getReadableDatabase().query(
+                "vault_items", null, null, null, null, null, "updated_at DESC", "400");
+        try {
+            while (cursor.moveToNext()) {
+                VaultItem item = decode(cursor);
+                if (VaultItem.PASSWORD.equals(item.kind)) {
+                    passwords++;
+                    if (isWeakSecret(item.secret)) weak++;
+                    if (item.secret != null && !item.secret.isEmpty()) {
+                        Integer n = secretCounts.get(item.secret);
+                        secretCounts.put(item.secret, n == null ? 1 : n + 1);
+                    }
+                } else if (VaultItem.NOTE.equals(item.kind)) notes++;
+                else if (VaultItem.CARD.equals(item.kind)) cards++;
+                if (item.favorite) {
+                    favorites++;
+                    if (overview.favoriteItems.size() < 8) overview.favoriteItems.add(item.copy());
+                }
+                if (overview.recentItems.size() < 8) overview.recentItems.add(item.copy());
+                item.clearSensitive();
+            }
+        } finally {
+            cursor.close();
+        }
+        for (Integer count : secretCounts.values()) {
+            if (count != null && count > 1) reused += count;
+        }
+        secretCounts.clear();
+        ArrayList<MediaItemRecord> files = new ArrayList<>(listMediaBlocking("", "files", 400));
+        int media = 0, documents = 0;
+        for (MediaItemRecord file : files) {
+            if (file.isDocument()) documents++;
+            else media++;
+            if (file.favorite) favorites++;
+        }
+        overview.files.addAll(files);
+        overview.counts = new Counts(passwords, notes, cards, media, documents);
+        overview.weak = weak;
+        overview.reused = reused;
+        overview.favorites = favorites;
+        return overview;
+    }
+
+    private static boolean isWeakSecret(String secret) {
+        if (secret == null || secret.length() < 10) return true;
+        String lower = secret.toLowerCase(Locale.ROOT);
+        if (lower.equals("password") || lower.equals("12345678") || lower.equals("123456789")
+                || lower.equals("qwerty") || lower.equals("admin") || lower.equals("iloveyou")
+                || lower.equals("letmein") || lower.equals("welcome")) return true;
+        boolean hasLetter = false, hasDigit = false;
+        for (int i = 0; i < secret.length(); i++) {
+            char c = secret.charAt(i);
+            if (Character.isLetter(c)) hasLetter = true;
+            else if (Character.isDigit(c)) hasDigit = true;
+        }
+        return !(hasLetter && hasDigit);
+    }
+
+    private String optionalMediaText(
+            SecurityManager security,
+            String id,
+            String field,
+            Cursor cursor,
+            String column,
+            String fallback) {
+        int index = cursor.getColumnIndex(column);
+        if (index < 0) return fallback;
+        String envelope = cursor.getString(index);
+        if (envelope == null || envelope.isEmpty()) return fallback;
+        try {
+            String value = security.decryptText(mediaPurpose(id, field), envelope);
+            return value == null || value.isEmpty() ? fallback : value;
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private long existingCreatedAt(String id, long fallback) {

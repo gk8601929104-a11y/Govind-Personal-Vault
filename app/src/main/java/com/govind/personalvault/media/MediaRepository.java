@@ -82,11 +82,17 @@ public final class MediaRepository {
         public final int imported;
         public final int failed;
         public final List<String> errors;
+        public final List<String> ids;
 
         public ImportSummary(int imported, int failed, List<String> errors) {
+            this(imported, failed, errors, new ArrayList<String>());
+        }
+
+        public ImportSummary(int imported, int failed, List<String> errors, List<String> ids) {
             this.imported = imported;
             this.failed = failed;
             this.errors = errors;
+            this.ids = ids == null ? new ArrayList<String>() : ids;
         }
     }
 
@@ -170,6 +176,26 @@ public final class MediaRepository {
         }, callback);
     }
 
+    public static Task exportCiphertextAsync(
+            Context context,
+            String id,
+            Callback<Uri> callback) {
+        Context app = context.getApplicationContext();
+        return submit(task -> {
+            throwIfCancelled(task);
+            MediaItemRecord item = VaultDb.get(app).getMediaBlocking(id);
+            if (item == null) {
+                throw new IOException("Encrypted file no longer exists");
+            }
+            try {
+                throwIfCancelled(task);
+                return MediaExporter.exportCiphertext(app, item);
+            } finally {
+                item.clearSensitive();
+            }
+        }, callback);
+    }
+
     public static Task deleteAsync(
             Context context,
             String id,
@@ -212,6 +238,7 @@ public final class MediaRepository {
 
         int imported = 0;
         ArrayList<String> errors = new ArrayList<>();
+        ArrayList<String> ids = new ArrayList<>();
         int total = uris.size();
 
         for (int index = 0; index < total; index++) {
@@ -285,6 +312,7 @@ public final class MediaRepository {
                 record.updatedAt = now;
 
                 VaultDb.get(context).saveMediaBlocking(record);
+                ids.add(record.id);
                 imported++;
             } catch (ImportCancelledRuntimeException cancelled) {
                 deleteImportArtifacts(context, id, encrypted);
@@ -338,7 +366,7 @@ public final class MediaRepository {
             }
         }
 
-        return new ImportSummary(imported, errors.size(), errors);
+        return new ImportSummary(imported, errors.size(), errors, ids);
     }
 
     /**

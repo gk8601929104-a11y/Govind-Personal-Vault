@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 (version code 17)
+
+- Overview now matches the Aegis-style home: greeting, Generate, health cards, Recent, Favorites, and Start with one secret.
+- Hamburger drawer with counts, Generator, Settings, Lock, and theme toggle. Header search and lock stay on every tab.
+- Files: title, category, favorite, tags, notes. Encrypt-file form. Detail panel with Edit, Open/Star/Delete menu, Download, and Export .enc.
+- Settings: encrypted vault backup (.gpv), import backup, import .enc (GVM2). Master PIN still re-wraps the same data key.
+- Password generator with copy and "use in new login". Weak/reused health uses real decrypted secrets in memory only while unlocked.
+- Encryption is unchanged (AES-256-GCM / GVM2, offline, same package ID). Over-install on 1.3.x.
+
 ## 1.3.3 (version code 16)
 
 - Overview counts now show real totals (Files was stuck at 0).

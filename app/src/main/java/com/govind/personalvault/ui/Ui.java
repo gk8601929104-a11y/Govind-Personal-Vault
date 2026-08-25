@@ -302,6 +302,22 @@ public final class Ui {
         return p;
     }
 
+    public static TextView iconBubble(Context context, String glyph) {
+        TextView view = text(context, glyph, 15, PALETTE.text);
+        view.setGravity(Gravity.CENTER);
+        int size = dp(context, 36);
+        view.setLayoutParams(new LinearLayout.LayoutParams(size, size));
+        view.setBackground(roundRect(context, PALETTE.raised, 99, 0, 0));
+        return view;
+    }
+
+    public static LinearLayout dashedCard(Context context) {
+        LinearLayout card = vertical(context);
+        card.setPadding(dp(context, 18), dp(context, 16), dp(context, 18), dp(context, 16));
+        card.setBackground(roundRect(context, Color.TRANSPARENT, 22, 1, withAlpha(PALETTE.line, 180)));
+        return card;
+    }
+
     public static GradientDrawable roundRect(Context context, int color, float radius, float stroke, int strokeColor) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);

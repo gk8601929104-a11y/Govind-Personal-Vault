@@ -2,7 +2,18 @@
 
 Govind Personal Vault is an offline Android 12+ application for passwords, secure notes, encrypted private media, and encrypted documents. It uses a 100% programmatic Android UI: there are no layout XML files.
 
-## Current release: 1.3.3 (versionCode 16)
+## Current release: 1.4.0 (versionCode 17)
+
+### Version 1.4.0 — Aegis-style vault
+
+- Home: greeting, New login / Generate, count tiles, weak / reused / favorites health, Recent, Favorites.
+- Drawer: Overview, Passwords, Notes, Cards, Files, Generator, Settings, Lock.
+- Files carry title, category, favorite, tags, and notes. Encrypt-file form. Download plaintext or export `.enc` ciphertext.
+- Settings backup: export `.gpv` (wrapped key + ciphertext DB + `.gvm`), import backup, import `.enc`.
+- Generator creates a strong password on-device and can drop it into a new login.
+- Encryption, package ID, GVM2 viewers, and signing are unchanged. Over-install on 1.3.x.
+
+## Previous release: 1.3.3 (versionCode 16)
 
 ### Version 1.3.3 — Overview counts, pinned nav, back
 

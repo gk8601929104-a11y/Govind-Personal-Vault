@@ -10,6 +10,7 @@ import android.webkit.MimeTypeMap;
 
 import com.govind.personalvault.model.MediaItemRecord;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -62,6 +63,57 @@ public final class MediaExporter {
             if (!complete) resolver.delete(outputUri, null, null);
         }
 
+        values.clear();
+        values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+        if (resolver.update(outputUri, values, null, null) != 1) {
+            resolver.delete(outputUri, null, null);
+            throw new IOException("Export could not be published to device storage");
+        }
+        return outputUri;
+    }
+
+    /** Writes the still-encrypted GVM2 blob to Downloads as a .enc file. */
+    public static Uri exportCiphertext(Context context, MediaItemRecord item)
+            throws IOException, GeneralSecurityException {
+        if (item == null || item.id == null) throw new IOException("Encrypted file metadata is missing");
+        java.util.UUID uuid;
+        try {
+            uuid = java.util.UUID.fromString(item.id);
+        } catch (IllegalArgumentException bad) {
+            throw new IOException("Encrypted file id is invalid");
+        }
+        File source = MediaFileFormat.finalFile(context, uuid);
+        if (!source.isFile()) throw new IOException("Encrypted file is missing on disk");
+        String base = MediaMetadataResolver.sanitizeName(item.displayTitle());
+        int dot = base.lastIndexOf('.');
+        if (dot > 0) base = base.substring(0, dot);
+        String name = base + ".enc";
+
+        ContentResolver resolver = context.getContentResolver();
+        Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Govind Personal Vault");
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri outputUri = resolver.insert(collection, values);
+        if (outputUri == null) throw new IOException("Export destination could not be created");
+        boolean complete = false;
+        byte[] buffer = new byte[64 * 1024];
+        try (java.io.FileInputStream input = new java.io.FileInputStream(source);
+             OutputStream output = resolver.openOutputStream(outputUri, "w")) {
+            if (output == null) throw new IOException("Export destination could not be opened");
+            int read;
+            while ((read = input.read(buffer)) >= 0) {
+                throwIfInterrupted();
+                if (read > 0) output.write(buffer, 0, read);
+            }
+            output.flush();
+            complete = true;
+        } finally {
+            java.util.Arrays.fill(buffer, (byte) 0);
+            if (!complete) resolver.delete(outputUri, null, null);
+        }
         values.clear();
         values.put(MediaStore.MediaColumns.IS_PENDING, 0);
         if (resolver.update(outputUri, values, null, null) != 1) {

@@ -51,7 +51,10 @@ public final class EntryEditorActivity extends BaseActivity {
         kind=getIntent().getStringExtra("kind");if(!VaultItem.validKind(kind))kind=VaultItem.PASSWORD;
         itemId=getIntent().getStringExtra("item_id");draftKey=kind+"|"+(itemId==null?"new":itemId);
         build();
-        if(itemId==null){loaded=true;restoreDraft();focusTitleForNewItem();}else loadItem();
+        if(itemId==null){loaded=true;restoreDraft();
+            String prefill=getIntent().getStringExtra("prefill_secret");
+            if(prefill!=null && !prefill.isEmpty() && secret!=null) secret.setText(prefill);
+            focusTitleForNewItem();}else loadItem();
     }
 
     @Override protected void onResume(){super.onResume();if(loaded&&VaultSession.isUnlocked()&&fieldsAreEmpty())restoreDraft();}
