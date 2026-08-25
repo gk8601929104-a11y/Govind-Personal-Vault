@@ -2,9 +2,12 @@
 
 Govind Personal Vault is an offline Android 12+ application for passwords, secure notes, encrypted private media, and encrypted documents. It uses a 100% programmatic Android UI: there are no layout XML files.
 
-## Current release: 1.3.2 (versionCode 15)
+## Current release: 1.3.3 (versionCode 16)
 
-### Version 1.3.2 — Home, titles, and viewers
+### Version 1.3.3 — Overview counts, pinned nav, back
+
+- Homepage file counts match the Files tab. Bottom bar stays at the bottom.
+- Android back from any tab returns to Overview.
 
 - Overview dashboard with tappable counts. Passwords title stays on one line.
 - Tap a document or photo to hide tools instantly; status bar hides while the file is open.

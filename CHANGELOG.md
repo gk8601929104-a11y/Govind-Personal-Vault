@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.3 (version code 16)
+
+- Overview counts now show real totals (Files was stuck at 0).
+- Bottom nav stays pinned to the bottom on Overview, same as other tabs.
+- Back from Passwords / Notes / Cards / Files returns to Overview instead of leaving the app.
+
 ## 1.3.2 (version code 15)
 
 - Overview is a dashboard: tap Passwords / Notes / Cards / Files tiles. Bottom nav stays pinned.

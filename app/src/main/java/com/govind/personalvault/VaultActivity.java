@@ -15,11 +15,13 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
@@ -60,7 +62,6 @@ public final class VaultActivity extends BaseActivity {
     private TextView clearSearch;
     private TextView pageTitle;
     private TextView pageSubtitle;
-    private TextView overviewStats;
     private TextView countPasswords;
     private TextView countNotes;
     private TextView countCards;
@@ -88,6 +89,16 @@ public final class VaultActivity extends BaseActivity {
                 new ActivityResultContracts.OpenMultipleDocuments(),
                 this::onFilesSelected);
         build();
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() {
+                if (!TAB_OVERVIEW.equals(selectedTab)) {
+                    selectTab(TAB_OVERVIEW);
+                    return;
+                }
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+        });
     }
 
     @Override protected void onResume() {
@@ -172,7 +183,6 @@ public final class VaultActivity extends BaseActivity {
         Button lock = Ui.secondary(this, "Lock now");
         lock.setOnClickListener(v -> lockNow());
         overviewPanel.addView(lock, Ui.margins(this, Ui.MATCH, Ui.dp(this, 48), 0, 22, 0, 0));
-        root.addView(overviewPanel);
 
         list = new ListView(this);
         list.setDivider(null);
@@ -182,7 +192,6 @@ public final class VaultActivity extends BaseActivity {
         adapter = new ItemAdapter();
         fileAdapter = new FileAdapter();
         list.setAdapter(adapter);
-        root.addView(list, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
 
         emptyState = Ui.vertical(this);
         emptyState.setGravity(Gravity.CENTER);
@@ -199,7 +208,12 @@ public final class VaultActivity extends BaseActivity {
         emptyAction = Ui.primary(this, "+ New");
         emptyAction.setOnClickListener(v -> primaryAction());
         emptyState.addView(emptyAction, centeredPanelParams(240));
-        root.addView(emptyState, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
+
+        FrameLayout body = new FrameLayout(this);
+        body.addView(overviewPanel, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+        body.addView(list, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+        body.addView(emptyState, new FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH));
+        root.addView(body, new LinearLayout.LayoutParams(Ui.MATCH, 0, 1));
 
         LinearLayout navWrap = Ui.vertical(this);
         View hairline = new View(this);
@@ -320,7 +334,7 @@ public final class VaultActivity extends BaseActivity {
             emptyAction.setText("+ Encrypt file");
         } else {
             pageTitle.setText("Vault");
-            pageSubtitle.setText("Appearance, lock timing, backup, and your PIN live in Settings.");
+            pageSubtitle.setText("Your vault, only on this phone.");
             emptySubtitle.setText("");
         }
         rebuildChips();
@@ -400,7 +414,6 @@ public final class VaultActivity extends BaseActivity {
                 if (VaultSession.isUnlocked()) error(error);
                 return;
             }
-            overviewStats.setText("");
             if (countPasswords != null) countPasswords.setText(String.valueOf(counts.passwords));
             if (countNotes != null) countNotes.setText(String.valueOf(counts.notes));
             if (countCards != null) countCards.setText(String.valueOf(counts.cards));
