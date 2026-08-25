@@ -473,7 +473,11 @@ public final class VaultDb extends SQLiteOpenHelper {
                         || ("image".equals(kind) && item.isImage())
                         || ("video".equals(kind) && item.isVideo())
                         || ("audio".equals(kind) && item.isAudio())
-                        || ("document".equals(kind) && item.isDocument()));
+                        || ("pdf".equals(kind) && item.isPdf())
+                        || ("text".equals(kind) && item.isText())
+                        || ("document".equals(kind) && item.isDocument() && !item.isPdf() && !item.isText())
+                        || ("other".equals(kind) && !item.isImage() && !item.isVideo() && !item.isAudio()
+                            && !item.isPdf() && !item.isText() && !item.isDocument()));
                 boolean queryMatches = query.isEmpty()
                         || item.originalName.toLowerCase(Locale.ROOT).contains(query)
                         || item.mimeType.toLowerCase(Locale.ROOT).contains(query);
@@ -667,7 +671,10 @@ public final class VaultDb extends SQLiteOpenHelper {
         return "image".equals(kind)
                 || "video".equals(kind)
                 || "audio".equals(kind)
+                || "pdf".equals(kind)
+                || "text".equals(kind)
                 || "document".equals(kind)
+                || "other".equals(kind)
                 || "files".equals(kind)
                 ? kind
                 : "all";
