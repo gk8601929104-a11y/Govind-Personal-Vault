@@ -1,0 +1,85 @@
+import java.util.Properties
+
+plugins {
+    id 'com.android.application'
+}
+
+final Properties versionProps = new Properties()
+file('version.properties').withInputStream { versionProps.load(it) }
+
+final String packageId = versionProps.getProperty('PACKAGE_ID')
+final int compileSdkValue = versionProps.getProperty('COMPILE_SDK').toInteger()
+final int minSdkValue = versionProps.getProperty('MIN_SDK').toInteger()
+final int targetSdkValue = versionProps.getProperty('TARGET_SDK').toInteger()
+final int versionCodeValue = versionProps.getProperty('VERSION_CODE').toInteger()
+final String versionNameValue = versionProps.getProperty('VERSION_NAME')
+final String media3Version = versionProps.getProperty('MEDIA3_VERSION')
+final String activityVersion = versionProps.getProperty('ACTIVITY_VERSION')
+
+final String signingKeystorePath = System.getenv('SIGNING_KEYSTORE')
+final String signingStorePasswordValue = System.getenv('SIGNING_STORE_PASSWORD')
+final String signingKeyAliasValue = System.getenv('SIGNING_KEY_ALIAS')
+final String signingKeyPasswordValue = System.getenv('SIGNING_KEY_PASSWORD')
+final boolean hasSigning = [
+        signingKeystorePath,
+        signingStorePasswordValue,
+        signingKeyAliasValue,
+        signingKeyPasswordValue
+]
+        .every { it != null && !it.isBlank() }
+
+android {
+    namespace packageId
+    compileSdk compileSdkValue
+    buildToolsVersion versionProps.getProperty('BUILD_TOOLS_VERSION')
+
+    defaultConfig {
+        applicationId packageId
+        minSdk minSdkValue
+        targetSdk targetSdkValue
+        versionCode versionCodeValue
+        versionName versionNameValue
+    }
+
+    if (hasSigning) {
+        signingConfigs {
+            release {
+                storeFile = file(signingKeystorePath)
+                storePassword = signingStorePasswordValue
+                keyAlias = signingKeyAliasValue
+                keyPassword = signingKeyPasswordValue
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            debuggable false
+            minifyEnabled false
+            shrinkResources false
+            if (hasSigning) {
+                signingConfig = signingConfigs.getByName('release')
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.activity:activity:$activityVersion"
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
+    implementation "androidx.media3:media3-ui:$media3Version"
+    implementation "androidx.media3:media3-common:$media3Version"
+    testImplementation 'junit:junit:4.13.2'
+}
