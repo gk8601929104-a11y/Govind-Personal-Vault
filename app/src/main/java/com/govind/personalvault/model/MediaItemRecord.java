@@ -22,6 +22,46 @@ public final class MediaItemRecord {
     public boolean isAudio() { return mimeType != null && mimeType.startsWith("audio/"); }
     public boolean isDocument() { return isDocumentMime(mimeType); }
 
+    public boolean isPdf() {
+        if (mimeType != null && "application/pdf".equalsIgnoreCase(mimeType.trim())) return true;
+        String name = originalName == null ? "" : originalName.toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".pdf");
+    }
+
+    public boolean isText() {
+        if (mimeType != null) {
+            String mime = mimeType.toLowerCase(java.util.Locale.ROOT);
+            if (mime.startsWith("text/")) return true;
+            if ("application/json".equals(mime) || "application/xml".equals(mime) || "application/javascript".equals(mime)) return true;
+        }
+        String name = originalName == null ? "" : originalName.toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".csv")
+                || name.endsWith(".log") || name.endsWith(".json") || name.endsWith(".xml");
+    }
+
+    /** Folder key used by the Files tab: image, video, audio, pdf, text, document, other. */
+    public String typeKey() {
+        if (isImage()) return "image";
+        if (isVideo()) return "video";
+        if (isAudio()) return "audio";
+        if (isPdf()) return "pdf";
+        if (isText()) return "text";
+        if (isDocument()) return "document";
+        return "other";
+    }
+
+    public String typeFolderLabel() {
+        switch (typeKey()) {
+            case "image": return "Images";
+            case "video": return "Videos";
+            case "audio": return "Audio";
+            case "pdf": return "PDF";
+            case "text": return "Text";
+            case "document": return "Documents";
+            default: return "Other";
+        }
+    }
+
     public static boolean isDocumentMime(String mime) {
         return mime == null
                 || !(mime.startsWith("image/")
@@ -35,10 +75,15 @@ public final class MediaItemRecord {
     }
 
     public String kindLabel() {
-        if (isImage()) return "PHOTO";
-        if (isVideo()) return "VIDEO";
-        if (isAudio()) return "AUDIO";
-        return "DOCUMENT";
+        switch (typeKey()) {
+            case "image": return "PHOTO";
+            case "video": return "VIDEO";
+            case "audio": return "AUDIO";
+            case "pdf": return "PDF";
+            case "text": return "TEXT";
+            case "document": return "DOCUMENT";
+            default: return "FILE";
+        }
     }
 
     public MediaItemRecord copy() {
